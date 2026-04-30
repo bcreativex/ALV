@@ -1,0 +1,1311 @@
+REPORT  zlsdr013 NO STANDARD PAGE HEADING
+                 LINE-SIZE 255.
+
+************************************************************************
+* INCLUDES
+************************************************************************
+INCLUDE zlsdr013_top.
+INCLUDE zlsdr013_selscreen.
+INCLUDE zlsdr013_subroutine.
+
+
+************************************************************************
+* AT-SELECTION-SCREEN.
+************************************************************************
+AT SELECTION-SCREEN ON VALUE-REQUEST FOR s_txtid-low.
+
+* F4 help for text type
+  PERFORM zf_f4_help_text_type.
+
+AT SELECTION-SCREEN.
+
+* Screen validations
+  PERFORM zf_screen_validations.
+
+
+************************************************************************
+* START-OF-SELECTION.
+************************************************************************
+START-OF-SELECTION.
+
+* Initialize Variables
+  PERFORM initialize_variables.
+
+* To convert R3 sales org to CRM sales org
+  PERFORM zf_convert_r3_salesorg_to_crm.
+
+* Convert Selection screen input's to ranges
+  PERFORM zf_convert_selection_to_ranges.
+
+* Get business partner data
+  PERFORM zf_get_bp_data.
+
+* Generate final output data
+  PERFORM zf_get_bp_texts.
+
+* ALV
+  PERFORM zf_generate_alv_output.
+
+
+*************************************************************************************
+TOP INCLUDE
+******************************************************************************************
+
+
+TABLES    :   but000,
+              tbh07,
+              ttxit.
+
+TYPE-POOLS:   slis.
+
+
+TYPES: BEGIN OF t_partners,
+         partner                       TYPE  tdobname,
+         name_org1                     TYPE  bu_nameor1,
+         partner_guid                  TYPE  crmt_partner_guid,
+       END OF t_partners,
+
+       BEGIN OF t_partner_texts,
+         partner                       TYPE  tdobname,
+         text_id                       TYPE  tdid,
+         tdspras                       TYPE  spras,
+       END OF t_partner_texts,
+
+       BEGIN OF t_text_descriptions,
+         text_id                       TYPE  tdid,
+         text_desc                     TYPE  tdtext,
+       END OF t_text_descriptions,
+
+       BEGIN OF t_output,
+         partner                       TYPE  bu_partner,
+         name_org1                     TYPE  bu_nameor1,
+         tdtext                        TYPE  tdtext,
+         textid                        TYPE  tdid,
+         tdspras(2)                    TYPE  c,
+         long_text_tab                 TYPE  tdline,
+       END OF t_output,
+
+       BEGIN OF t_output_long,
+         partner                       TYPE  bu_partner,
+         name_org1                     TYPE  bu_nameor1,
+         textid                        TYPE  tdid,
+         tdtext                        TYPE  tdtext,
+         tdspras(2)                    TYPE  c,
+         long_text_tab                 TYPE  string,
+       END OF t_output_long.
+
+
+DATA:  i_partners                      TYPE  TABLE OF t_partners,
+       i_partner_texts                 TYPE  TABLE OF t_partner_texts,
+       i_text_descriptions             TYPE  TABLE OF t_text_descriptions,
+       i_output                        TYPE  TABLE OF t_output,
+       i_output_lgtxt                  TYPE  TABLE OF t_output_long,
+       i_fieldcat                      TYPE  slis_t_fieldcat_alv,
+       i_excluding                     TYPE  slis_t_extab,
+       i_tevents                       TYPE  slis_t_event,
+       i_sort                          TYPE  slis_t_sortinfo_alv,
+
+       g_crm_sales_org                 TYPE  crmt_sales_org,
+
+       r_role_typ                      TYPE  RANGE OF  but100-rltyp,
+       r_sort1                         TYPE  RANGE OF  but000-bu_sort1,
+       r_cust_class                    TYPE  RANGE OF  crmm_but_frg0041-classific,
+       r_industry                      TYPE  RANGE OF  crmm_but_frg0041-industry,
+       r_salesorg                      TYPE  RANGE OF  crmm_but_lnk0010-sales_org.
+
+
+CONSTANTS :
+       c_formname_pf_status_set        TYPE  slis_formname     VALUE 'PF_STATUS_SET',
+       c_formname_user_command         TYPE  slis_formname     VALUE 'USER_COMMAND',
+       c_bp_tab                        TYPE  tdobject          VALUE 'BUT000',
+       c_alv_output_tab                TYPE  slis_tabname      VALUE 'I_OUTPUT',
+       c_partner_no                    TYPE  slis_fieldname    VALUE 'PARTNER',
+       c_partner_name                  TYPE  slis_fieldname    VALUE 'NAME_ORG1',
+       c_text_id                       TYPE  slis_fieldname    VALUE 'TEXTID',
+       c_text_desc                     TYPE  slis_fieldname    VALUE 'TDTEXT',
+       c_bp_text                       TYPE  slis_fieldname    VALUE 'LONG_TEXT_TAB',
+       c_save(1)                       TYPE  c                 VALUE 'A',
+       c_cancel                        TYPE  syucomm           VALUE 'CANCEL',
+       c_exit                          TYPE  syucomm           VALUE 'EXIT',
+       c_click                         TYPE  syucomm           VALUE '&IC1',
+       c_download                      TYPE  syucomm           VALUE 'PRNT',
+       c_x                             TYPE  char01            VALUE 'X',
+       c_sort_up                       TYPE  slis_extab-fcode  VALUE '&OUP',
+       c_sort_down                     TYPE  slis_extab-fcode  VALUE '&ODN',
+       c_file(8)                       TYPE  c                 VALUE 'download',
+       c_hyphen(1)                     TYPE  c                 VALUE '_',
+       c_excel(4)                      TYPE  c                 VALUE '.xls',
+       c_select(1)                     TYPE  c                 VALUE 'S',
+       c_language_key                  TYPE  slis_fieldname    VALUE 'TDSPRAS'.
+
+*************************************************************************************
+SEL INCLUDE
+******************************************************************************************
+
+
+
+*Partner Numbers
+SELECTION-SCREEN BEGIN OF BLOCK partner WITH FRAME TITLE text-000.
+SELECT-OPTIONS s_patnr      FOR    but000-partner.
+SELECTION-SCREEN END OF BLOCK partner.
+
+
+*Alternate Selection Criteria
+SELECTION-SCREEN BEGIN OF BLOCK criteria WITH FRAME TITLE text-012.
+PARAMETERS      p_role       TYPE   but100-rltyp.
+*PARAMETERS      p_eccorg     TYPE   tbh07-vkorg.
+SELECT-OPTIONS  s_eccorg     FOR    tbh07-vkorg OBLIGATORY. " NO INTERVALS OBLIGATORY.
+PARAMETERS      p_custcl     TYPE   crmm_but_frg0041-classific.
+PARAMETERS      p_sort1      TYPE   but000-bu_sort1.
+PARAMETERS      p_indust     TYPE   crmm_but_frg0041-industry.
+SELECTION-SCREEN END OF BLOCK criteria.
+
+*Texts
+SELECTION-SCREEN BEGIN OF BLOCK texts WITH FRAME TITLE text-013.
+SELECT-OPTIONS s_txtid      FOR    ttxit-tdid NO INTERVALS OBLIGATORY.
+SELECTION-SCREEN END OF BLOCK texts.
+
+*************************************************************************************
+F01 INCLUDE
+******************************************************************************************
+
+
+*&---------------------------------------------------------------------*
+*&      Form  ZF_CONVERT_R3_SALESORG_TO_CRM
+*&---------------------------------------------------------------------*
+* Get CRM sales org for the R3 sales org entered at the selection screen
+* input given by user
+*----------------------------------------------------------------------*
+FORM zf_convert_r3_salesorg_to_crm .
+
+* Structure
+  DATA : la_sales_area TYPE  crmt_bus_sales_area.
+  DATA: la_r_salesorg  LIKE  LINE OF r_salesorg.
+
+*  CLEAR g_crm_sales_org.
+  LOOP AT s_eccorg.
+    CLEAR la_r_salesorg.
+    la_r_salesorg-option = s_eccorg-option.
+    la_r_salesorg-sign   = s_eccorg-sign.
+    IF NOT s_eccorg-low IS INITIAL.
+      CLEAR la_sales_area.
+      CALL FUNCTION 'CRM_BUPA_SALES_AREA_TO_CRM'
+        EXPORTING
+          iv_vkorg                            = s_eccorg-low
+          iv_vtweg                            = '01'
+          iv_spart                            = '01'
+       IMPORTING
+         es_sales_area                       = la_sales_area
+       EXCEPTIONS
+         no_mapping_defined                  = 1
+         crm_key_not_defined                 = 2
+         OTHERS                              = 3.
+      IF sy-subrc = 0 AND la_sales_area-sales_org IS NOT INITIAL.
+      la_r_salesorg-low = la_sales_area-sales_org.
+      ELSE.
+        CLEAR la_r_salesorg.
+      ENDIF.
+    ENDIF.
+    IF NOT s_eccorg-high IS INITIAL.
+      CLEAR la_sales_area.
+      CALL FUNCTION 'CRM_BUPA_SALES_AREA_TO_CRM'
+        EXPORTING
+          iv_vkorg                            = s_eccorg-high
+          iv_vtweg                            = '01'
+          iv_spart                            = '01'
+       IMPORTING
+         es_sales_area                       = la_sales_area
+       EXCEPTIONS
+         no_mapping_defined                  = 1
+         crm_key_not_defined                 = 2
+         OTHERS                              = 3.
+      IF sy-subrc = 0 AND la_sales_area-sales_org IS NOT INITIAL.
+      la_r_salesorg-high = la_sales_area-sales_org.
+      ELSE.
+        CLEAR la_r_salesorg.
+      ENDIF.
+    ENDIF.
+    APPEND la_r_salesorg TO r_salesorg.
+  ENDLOOP.
+
+*  CHECK p_eccorg IS NOT INITIAL.
+** Get CRM sales details
+*  CALL FUNCTION 'CRM_BUPA_SALES_AREA_TO_CRM'
+*    EXPORTING
+*      iv_vkorg            = p_eccorg
+*      iv_vtweg            = '01'
+*      iv_spart            = '01'
+*    IMPORTING
+*      es_sales_area       = la_sales_area
+*    EXCEPTIONS
+*      no_mapping_defined  = 1
+*      crm_key_not_defined = 2
+*      OTHERS              = 3.
+*
+*  IF NOT la_sales_area IS INITIAL.
+*
+**   CRM Sales Org
+*    g_crm_sales_org = la_sales_area-sales_org.
+*
+*  ENDIF.
+ENDFORM.                    " CONVERT_R3_SALESORG_TO_CRM
+
+*&---------------------------------------------------------------------*
+*&      Form  ZF_GET_BP_DATA
+*&---------------------------------------------------------------------*
+* Get the business partner data and the text id and text type of the
+* corresponding BP texts maintained in BP
+*----------------------------------------------------------------------*
+FORM zf_get_bp_data .
+
+  REFRESH: i_partners,
+           i_partner_texts.
+
+* Get partners from Selection Screen Criteria
+  SELECT  a~partner  a~name_org1  a~partner_guid
+    INTO  TABLE i_partners
+    FROM  but000 AS a
+   INNER  JOIN crmm_but_lnk0010 AS b ON a~partner_guid = b~partner_guid
+   INNER  JOIN but100           AS c ON a~partner      = c~partner
+   INNER  JOIN crmm_but_frg0041 AS d ON a~partner_guid = d~partner_guid
+    WHERE   a~partner      IN  s_patnr
+     AND    a~bu_sort1     IN  r_sort1
+     AND    b~sales_org    IN  r_salesorg
+     AND    c~rltyp        IN  r_role_typ
+     AND    d~industry     IN  r_industry
+     AND    d~classific    IN  r_cust_class.
+
+  IF sy-subrc = 0 AND NOT i_partners IS INITIAL.
+
+    SORT i_partners.
+    DELETE ADJACENT DUPLICATES FROM i_partners.
+
+*   Get text types maintained for the Partners
+    SELECT  tdname tdid tdspras INTO TABLE i_partner_texts
+      FROM  stxh
+      FOR   ALL ENTRIES IN i_partners
+      WHERE tdobject  =  'BUT000'
+        AND tdname    =  i_partners-partner
+        AND tdid     IN  s_txtid.
+*        AND tdspras   =  sy-langu.
+
+  ENDIF.
+
+
+ENDFORM.                    " GET_BP_DATA
+
+
+*&---------------------------------------------------------------------*
+*&      Form  ZF_GET_BP_TEXTS
+*&---------------------------------------------------------------------*
+* Prepare final output data for getting the BP data and BP texts
+*----------------------------------------------------------------------*
+FORM zf_get_bp_texts.
+
+  DATA: la_partner_texts         TYPE  t_partner_texts,
+        la_partner               TYPE  t_partners,
+        l_partner                TYPE  bu_partner,
+        la_text_description      TYPE  t_text_descriptions,
+        li_lines                 TYPE  TABLE OF tline,
+        la_line                  TYPE  tline,
+        la_output                TYPE  t_output,
+        la_output_lgtxt          TYPE  t_output_long,
+        l_textid                 TYPE  thead-tdid,
+        l_name                   TYPE  thead-tdname,
+        l_line                   TYPE  string,
+        la_output_hold           TYPE  t_output,
+        l_count                  TYPE  i,
+        l_text                   TYPE  string.
+
+
+* Get Text Type Description
+  PERFORM get_text_type_descriptions.
+
+  REFRESH: i_output,
+           i_output_lgtxt.
+
+
+* Each Partner-Text Type Combination
+  LOOP AT i_partner_texts  INTO la_partner_texts.
+
+    CLEAR: la_output,
+           la_output_lgtxt,
+           l_text,
+           l_textid,
+           la_output_hold,
+           l_name.
+
+    REFRESH: li_lines.
+
+*   Partner Number
+    l_partner = la_partner_texts-partner.
+
+    READ TABLE i_partners INTO la_partner
+         WITH KEY partner = la_partner_texts-partner.
+
+    CHECK sy-subrc = 0.
+
+    la_output-partner      =   la_partner-partner.
+
+*   Partner Name
+    la_output-name_org1    =   la_partner-name_org1.
+
+*   Text ID
+    la_output-textid       =   la_partner_texts-text_id.
+
+*   Text Description
+    READ TABLE i_text_descriptions INTO la_text_description
+         WITH KEY text_id = la_output-textid.
+    IF sy-subrc = 0.
+      la_output-tdtext = la_text_description-text_desc.
+    ENDIF.
+
+*   Language Key
+CALL FUNCTION 'CONVERSION_EXIT_ISOLA_OUTPUT'
+  EXPORTING
+    input        = la_partner_texts-tdspras
+ IMPORTING
+   output        = la_output-tdspras.
+
+*   BP text id and partner
+    l_textid  = la_partner_texts-text_id.
+    l_name    = la_partner-partner.
+
+    MOVE-CORRESPONDING la_output TO la_output_hold.
+*   BP text
+    CALL FUNCTION 'READ_TEXT'
+      EXPORTING
+        id                      = l_textid
+        language                = la_partner_texts-tdspras "sy-langu
+        name                    = l_name
+        object                  = 'BUT000'
+      TABLES
+        lines                   = li_lines
+      EXCEPTIONS
+        id                      = 1
+        language                = 2
+        name                    = 3
+        not_found               = 4
+        object                  = 5
+        reference_check         = 6
+        wrong_access_to_archive = 7
+        OTHERS                  = 8.
+
+    IF sy-subrc = 0 AND NOT li_lines IS INITIAL.
+
+      CLEAR l_count.
+      LOOP AT li_lines INTO la_line.
+
+        l_count = l_count + 1.
+        IF l_count = 1.
+        la_output-long_text_tab = la_line-tdline.
+        ELSE.
+        CLEAR la_output.
+        la_output-long_text_tab = la_line-tdline.
+        ENDIF.
+        APPEND la_output TO i_output.
+
+*       Data for Excel Download
+        CONCATENATE l_text la_line-tdline INTO l_text SEPARATED BY space.
+      ENDLOOP.
+
+*     Internal table for generating Excel file
+      la_output_lgtxt-partner       = la_output_hold-partner.     "la_output-partner.
+      la_output_lgtxt-name_org1     = la_output_hold-name_org1.   "la_output-name_org1.
+      la_output_lgtxt-textid        = la_output_hold-textid.      "la_output-textid.
+      la_output_lgtxt-tdtext        = la_output_hold-tdtext.      "la_output-tdtext.
+*-- Language key
+      la_output_lgtxt-tdspras       = la_output_hold-tdspras."la_output-tdspras.
+
+      la_output_lgtxt-long_text_tab = l_text.
+*     Excel sheet data
+      APPEND la_output_lgtxt TO i_output_lgtxt.
+
+    ENDIF.
+
+  ENDLOOP.
+
+*  SORT i_output_lgtxt BY partner name_org1 textid.
+*  DELETE ADJACENT DUPLICATES FROM i_output_lgtxt COMPARING partner name_org1 textid.
+*
+*  SORT i_output BY partner name_org1 textid.
+*  DELETE ADJACENT DUPLICATES FROM i_output COMPARING partner name_org1 textid.
+
+ENDFORM.                    " GET_BP_TEXTS
+
+
+*&---------------------------------------------------------------------*
+*&      Form  GET_TEXT_TYPE_DESCRIPTIONS
+*&---------------------------------------------------------------------*
+FORM get_text_type_descriptions.
+
+  REFRESH: i_text_descriptions.
+
+* BP text description
+  SELECT  tdid tdtext
+    INTO  TABLE i_text_descriptions
+    FROM  ttxit
+   WHERE  tdspras   =  sy-langu
+     AND  tdobject  =  'BUT000'
+     AND  tdid     IN  s_txtid.
+
+
+ENDFORM.                    " GET_TEXT_TYPE_DESCRIPTIONS
+
+
+*&---------------------------------------------------------------------*
+*&      Form  ZF_DISPLAY_ALV_OUTPUT
+*&---------------------------------------------------------------------*
+* Build ALV
+*----------------------------------------------------------------------*
+FORM zf_generate_alv_output.
+
+  IF i_output IS NOT INITIAL.
+
+*   Build Fieldcat
+    PERFORM zf_build_fieldcat.
+
+*   Build Event Table
+    PERFORM zf_eventtab_build CHANGING i_tevents.
+
+*   ALV Display
+    PERFORM zf_display_output.
+
+  ELSE.
+
+    MESSAGE text-006 TYPE 'I'.
+
+  ENDIF.
+
+
+ENDFORM.                    " DISPLAY_ALV_OUTPUT
+
+
+*&---------------------------------------------------------------------*
+*&      Form  ZF_BUILD_FIELDCAT
+*&---------------------------------------------------------------------*
+* Build Field catalog
+*----------------------------------------------------------------------*
+FORM zf_build_fieldcat.
+
+
+  DATA: la_fieldcat                     TYPE  slis_fieldcat_alv.
+
+
+* Partner Number
+  CLEAR la_fieldcat.
+  la_fieldcat-tabname   = c_alv_output_tab.
+  la_fieldcat-fieldname = c_partner_no.
+  la_fieldcat-seltext_l = text-001.
+  la_fieldcat-hotspot = 'X'.
+  APPEND la_fieldcat TO i_fieldcat.
+
+
+* Name
+  CLEAR la_fieldcat.
+  la_fieldcat-tabname   = c_alv_output_tab.
+  la_fieldcat-fieldname = c_partner_name.
+  la_fieldcat-seltext_l = text-002.
+  APPEND la_fieldcat TO i_fieldcat.
+
+* Text Type
+  CLEAR la_fieldcat.
+  la_fieldcat-tabname   = c_alv_output_tab.
+  la_fieldcat-fieldname = c_text_id.
+  la_fieldcat-seltext_l = text-003.
+  APPEND la_fieldcat TO i_fieldcat.
+
+* Description
+  CLEAR la_fieldcat.
+  la_fieldcat-tabname   = c_alv_output_tab.
+  la_fieldcat-fieldname = c_text_desc.
+  la_fieldcat-seltext_l = text-004.
+  APPEND la_fieldcat TO i_fieldcat.
+
+* Language Key
+  CLEAR la_fieldcat.
+  la_fieldcat-tabname   = c_alv_output_tab.
+  la_fieldcat-fieldname = c_language_key.
+  la_fieldcat-seltext_l = text-017.
+  APPEND la_fieldcat TO i_fieldcat.
+
+* Long Text
+  CLEAR la_fieldcat.
+  la_fieldcat-tabname   = c_alv_output_tab.
+  la_fieldcat-fieldname = c_bp_text.
+  la_fieldcat-seltext_l = text-005.
+  APPEND la_fieldcat TO i_fieldcat.
+
+
+ENDFORM.                    " ZF_BUILD_FIELDCAT
+
+
+*&---------------------------------------------------------------------*
+*&      Form  ZF_DISPLAY_OUTPUT
+*&---------------------------------------------------------------------*
+* Display ALV output
+*----------------------------------------------------------------------*
+FORM zf_display_output .
+
+  DATA: la_layout                       TYPE  slis_layout_alv.
+
+
+* Exclude SORT button on application toolbar
+  PERFORM zf_exclude_sort_button.
+
+* Merge records of same partners
+*  PERFORM zf_sort_on_alv.
+
+* Layout
+  CLEAR la_layout.
+  la_layout-window_titlebar   = text-008.
+  la_layout-colwidth_optimize = c_x.
+
+* ALV GRID
+  CALL FUNCTION 'REUSE_ALV_GRID_DISPLAY'
+    EXPORTING
+      i_callback_program      = sy-repid
+      i_callback_user_command = 'USER_COMMAND'
+      is_layout               = la_layout
+      it_fieldcat             = i_fieldcat[]
+      i_save                  = c_save
+      it_excluding            = i_excluding
+      it_sort                 = i_sort
+      it_events               = i_tevents
+    TABLES
+      t_outtab                = i_output
+    EXCEPTIONS                                              "#EC *
+      program_error           = 1
+      OTHERS                  = 2.
+
+ENDFORM.                    " ZF_DISPLAY_OUTPUT
+
+
+*&---------------------------------------------------------------------*
+*&      Form  USER_COMMAND
+*&---------------------------------------------------------------------*
+* To display BP on double clicking Partner
+*----------------------------------------------------------------------*
+FORM user_command USING  ucomm     TYPE sy-ucomm
+                         selfield  TYPE slis_selfield.      "#EC CALLED
+
+* User Command
+  CASE ucomm.
+
+*  Cancel button
+    WHEN c_cancel.
+
+      LEAVE PROGRAM.
+
+*  Exit button
+    WHEN c_exit.
+
+      LEAVE PROGRAM.
+
+*   Call transaction
+    WHEN  c_click.
+
+*     On double click goto BP transaction
+      PERFORM zf_open_bp_transaction USING selfield.
+
+*   Excel download
+    WHEN c_download.
+
+      PERFORM zf_alv_to_excel_download.
+
+  ENDCASE.
+
+
+ENDFORM.                    "user_command
+*&---------------------------------------------------------------------*
+*&      Form  ZF_EXCLUDE_SORT_BUTTON
+*&---------------------------------------------------------------------*
+* To exclude Sort Button from Application tool bar
+*----------------------------------------------------------------------*
+
+FORM zf_exclude_sort_button .
+
+  DATA : la_fcode     TYPE slis_extab-fcode.
+
+* Sort UP
+  la_fcode = c_sort_up.
+  APPEND la_fcode TO i_excluding.
+
+* Sort down
+  la_fcode = c_sort_down.
+  APPEND la_fcode TO i_excluding.
+
+ENDFORM.                    " ZF_REMOVE_SORT_BUTTON
+
+
+*&---------------------------------------------------------------------*
+*&      Form  ZF_SORT_ON_ALV
+*&---------------------------------------------------------------------*
+* Sort the ALV output records
+*----------------------------------------------------------------------*
+
+FORM zf_sort_on_alv .
+
+  DATA : la_sort      LIKE LINE OF i_sort.
+
+  REFRESH i_sort.
+
+* Partner
+  la_sort-spos              = 1.
+  la_sort-fieldname         = c_partner_no.
+  APPEND la_sort  TO i_sort.
+
+* Name
+  la_sort-spos               = 2.
+  la_sort-fieldname          = c_partner_name.
+  APPEND la_sort  TO i_sort.
+
+* Text type
+  la_sort-spos               = 3.
+  la_sort-fieldname          = c_text_id.
+  APPEND la_sort  TO i_sort.
+
+* Text description
+  la_sort-spos               = 4.
+  la_sort-fieldname          = c_text_desc.
+  APPEND la_sort  TO i_sort.
+
+
+ENDFORM.                    " ZF_SORT_ON_ALV
+**&---------------------------------------------------------------------*
+**&      Form  ZF_EVENTTAB_BUILD
+**&---------------------------------------------------------------------*
+** For SET PF STATUS and USER COMMAND
+**----------------------------------------------------------------------*
+
+FORM zf_eventtab_build  CHANGING p_i_tevents TYPE slis_t_event.
+
+  DATA: la_event                TYPE  slis_alv_event.
+
+
+* For events
+  CALL FUNCTION 'REUSE_ALV_EVENTS_GET'
+    EXPORTING
+      i_list_type = 0
+    IMPORTING
+      et_events   = p_i_tevents.
+
+
+* SET PF STATUS
+  READ TABLE p_i_tevents WITH KEY name =  slis_ev_pf_status_set
+                         INTO la_event.
+  IF sy-subrc = 0.
+    MOVE c_formname_pf_status_set TO la_event-form.
+    APPEND la_event TO p_i_tevents.
+  ENDIF.
+
+* USER COMMAND
+  READ TABLE p_i_tevents WITH KEY name =  slis_ev_user_command
+                         INTO la_event.
+  IF sy-subrc = 0.
+    MOVE c_formname_user_command TO la_event-form.
+    APPEND la_event TO p_i_tevents.
+  ENDIF.
+
+* TOP OF PAGE
+  READ TABLE p_i_tevents WITH KEY name =  slis_ev_top_of_page
+                         INTO la_event.
+  IF sy-subrc = 0.
+    MOVE 'TOP_OF_PAGE' TO la_event-form.
+    APPEND la_event TO p_i_tevents.
+  ENDIF.
+
+
+ENDFORM.                    " EVENTTAB_BUILD
+
+*&--------------------------------------------------------------------*
+*&      Form  pf_status_set
+*&--------------------------------------------------------------------*
+*       Set PF Status for ALV
+*&--------------------------------------------------------------------*
+
+FORM pf_status_set USING rt_extab TYPE slis_t_extab .       "#EC CALLED
+
+  SET PF-STATUS 'ALV_USER_STATUS' EXCLUDING rt_extab.
+
+ENDFORM.                    "PF_STATUS_SET
+
+
+*&---------------------------------------------------------------------*
+*&      Form  ZF_OPEN_BP_TRANSACTION
+*&---------------------------------------------------------------------*
+* Move to BP transaction on double clicking partner on ALV output
+*----------------------------------------------------------------------*
+
+FORM zf_open_bp_transaction  USING  selfield  TYPE slis_selfield.
+
+  DATA    : l_bupa_request   TYPE   REF TO cl_bupa_navigation_request,
+            l_partner        TYPE   bu_partner,
+            la_output        TYPE   t_output,
+            l_index          TYPE   sy-tabix.
+
+  STATICS : la_options       TYPE   REF TO cl_bupa_dialog_joel_options.
+
+  CHECK   selfield-fieldname = c_partner_no AND NOT selfield-value = space.
+
+* Check Authority for BP Tcode
+  CALL FUNCTION 'AUTHORITY_CHECK_TCODE'
+    EXPORTING
+      tcode  = 'BP'
+    EXCEPTIONS
+      ok     = 1
+      not_ok = 2
+      OTHERS = 3.
+
+  IF sy-subrc > 1.
+*   User not authorized = display message
+    MESSAGE text-015 TYPE 'I'.
+    EXIT.
+  ENDIF.
+
+ DATA: lt_fields  TYPE TABLE OF bus0fldval,
+       ls_fields  TYPE bus0fldval,
+       l_textid   TYPE comt_text_textid,
+       l_textname TYPE tdobname,
+       l_spras    TYPE thead-tdspras.
+
+  DATA gs_navigation TYPE bus_navigation .
+
+  CREATE OBJECT l_bupa_request.
+
+  IF la_options IS INITIAL.
+    CREATE OBJECT la_options.
+    CALL METHOD la_options->set_locator_visible( space ).
+  ENDIF.
+
+  CLEAR l_partner.
+  l_partner = selfield-value.
+
+** Fill the request fields.
+ CALL METHOD l_bupa_request->set_maintenance_id
+    EXPORTING
+      iv_value = l_bupa_request->gc_maintenance_id_partner.
+
+  CALL METHOD l_bupa_request->set_partner_number( l_partner ).
+
+  CALL METHOD l_bupa_request->set_bupa_sub_header_id
+    EXPORTING
+      iv_value = 'BUP001'.
+
+  CALL METHOD l_bupa_request->set_bupa_sub_header_tab
+    EXPORTING
+      iv_value = 'CRM011'.
+
+  CALL METHOD l_bupa_request->set_bupa_activity
+    EXPORTING
+      iv_value = l_bupa_request->gc_activity_change.
+
+   CLEAR:l_index,l_textid,l_spras.
+
+   l_index = selfield-tabindex.
+
+   CLEAR la_output.
+   READ TABLE i_output INTO la_output INDEX l_index.
+   IF sy-subrc = 0.
+    ls_fields-tbfld = 'COMT_TEXT_SCREEN_DYN_2020-TDID'.
+    ls_fields-fldvl = la_output-textid.   "Text Id FROM Report Output
+    INSERT ls_fields INTO TABLE lt_fields.
+
+    ls_fields-tbfld = 'COMT_TEXT_SCREEN_DYN_2020-TDSPRAS'.
+    ls_fields-fldvl = la_output-tdspras.  "Language From Report Output
+    INSERT ls_fields INTO TABLE lt_fields.
+
+    gs_navigation-bupa-field_values[] = lt_fields[].
+
+   CALL METHOD l_bupa_request->set_bupa_field_values
+    EXPORTING
+    it_values = gs_navigation-bupa-field_values[].
+
+    l_textid = la_output-textid.
+
+  CALL FUNCTION 'COM_TEXT_DEFAULT_TEXTID_SET'
+  EXPORTING
+    iv_object         = 'BUT000'
+    iv_procedure      = 'DEFAULT'
+     iv_textname       = l_textname
+     iv_textid         = l_textid.
+
+  l_spras = la_output-tdspras.
+
+CALL FUNCTION 'COM_TEXT_DEFAULT_LANGUAGE_SET'
+  EXPORTING
+    iv_spras       = l_spras.
+
+* Call BP Maintenance Transaction
+  CALL METHOD cl_bupa_dialog_joel=>start_with_navigation
+    EXPORTING
+      iv_request              = l_bupa_request
+      iv_options              = la_options
+*      iv_in_new_internal_mode = 'X'
+    EXCEPTIONS
+      OTHERS                  = 0.
+  IF sy-subrc <> 0.
+    MESSAGE text-016 TYPE 'I'.
+  ENDIF.
+ENDIF.
+
+
+ENDFORM.                    " ZF_OPEN_BP_TRANSACTION
+
+
+*&---------------------------------------------------------------------*
+*&      Form  ZF_ALV_TO_EXCEL_DOWNLOAD
+*&---------------------------------------------------------------------*
+* Download ALV to Excel file
+*----------------------------------------------------------------------*
+FORM zf_alv_to_excel_download.
+
+* Structures
+  TYPES : BEGIN OF t_head,
+          field1(20) TYPE c,          " Header Data
+          END OF t_head.
+
+* Internal tables and workareas
+  DATA  : li_head TYPE TABLE OF t_head,
+          la_head TYPE t_head.
+
+* Variables
+  DATA  : l_filename    TYPE  string.
+  DATA  : l_filename1   TYPE  string.
+
+
+* Header data for excel
+  la_head-field1 = text-001.
+  APPEND la_head TO li_head.
+  CLEAR la_head.
+
+  la_head-field1 = text-002.
+  APPEND la_head TO li_head.
+  CLEAR la_head.
+
+  la_head-field1 = text-003.
+  APPEND la_head TO li_head.
+  CLEAR la_head.
+
+  la_head-field1 = text-004.
+  APPEND la_head TO li_head.
+  CLEAR la_head.
+
+* Language
+  la_head-field1 = text-017.
+  APPEND la_head TO li_head.
+
+
+  la_head-field1 = text-005.
+  APPEND la_head TO li_head.
+
+* File Path
+  CONCATENATE: c_file c_hyphen sy-uzeit+4(2) INTO l_filename.
+  CONCATENATE: l_filename c_excel            INTO l_filename1.
+
+* POPUP for selecting the filepath
+  CALL FUNCTION 'GUI_FILE_SAVE_DIALOG'
+    EXPORTING
+      window_title      = text-007
+      default_file_name = l_filename1
+    IMPORTING
+      filename          = l_filename1.
+
+  CHECK l_filename1 IS NOT INITIAL.
+
+* Download to Excel file
+  CALL FUNCTION 'GUI_DOWNLOAD'
+    EXPORTING
+      filename                = l_filename1
+      filetype                = 'ASC'
+      write_field_separator   = c_x
+    TABLES
+      data_tab                = i_output_lgtxt
+      fieldnames              = li_head
+    EXCEPTIONS
+      file_write_error        = 1
+      no_batch                = 2
+      gui_refuse_filetransfer = 3
+      invalid_type            = 4
+      no_authority            = 5
+      unknown_error           = 6
+      header_not_allowed      = 7
+      separator_not_allowed   = 8
+      filesize_not_allowed    = 9
+      header_too_long         = 10
+      dp_error_create         = 11
+      dp_error_send           = 12
+      dp_error_write          = 13
+      unknown_dp_error        = 14
+      access_denied           = 15
+      dp_out_of_memory        = 16
+      disk_full               = 17
+      dp_timeout              = 18
+      file_not_found          = 19
+      dataprovider_exception  = 20
+      control_flush_error     = 21
+      OTHERS                  = 22.
+
+  IF sy-subrc = 0.
+
+*   For Success message
+    MESSAGE text-009 TYPE 'S'.
+
+  ENDIF.
+
+ENDFORM.                    " ZF_ALV_TO_EXCEL_DOWNLOAD
+
+
+*&---------------------------------------------------------------------*
+*&      Form  ZF_CONVERT_SELECTION_TO_RANGES
+*&---------------------------------------------------------------------*
+* Convert parameters to range
+*----------------------------------------------------------------------*
+FORM zf_convert_selection_to_ranges.
+
+* Convert business role to range
+  PERFORM zf_business_role_to_range.
+
+* Convert search term to range
+  PERFORM zf_search_term_to_range.
+
+* Convert customer class to range
+  PERFORM zf_custclass_to_range.
+
+* Convert industry to range
+  PERFORM zf_industry_to_range.
+
+* Convert sales org to range
+*  PERFORM zf_salesorg_to_range.
+
+ENDFORM.                    " ZF_CONVERT_SELECTION_TO_RANGES
+
+
+*&---------------------------------------------------------------------*
+*&      Form  ZF_BUSINESS_ROLE_TO_RANGE
+*&---------------------------------------------------------------------*
+* Convert Business role type to range
+*----------------------------------------------------------------------*
+FORM zf_business_role_to_range .
+
+  DATA: la_r_role_typ                   LIKE  LINE OF r_role_typ.
+
+  CHECK NOT p_role IS INITIAL.
+
+
+  la_r_role_typ-sign    = 'I'.
+  la_r_role_typ-option  = 'EQ'.
+
+  la_r_role_typ-low     = p_role.
+
+  APPEND la_r_role_typ TO r_role_typ.
+
+
+ENDFORM.                    " ZF_BUSINESS_ROLE_TO_RANGE
+
+
+*&---------------------------------------------------------------------*
+*&      Form  ZF_SEARCH_TERM_TO_RANGE
+*&---------------------------------------------------------------------*
+* Convert search term to range
+*----------------------------------------------------------------------*
+FORM zf_search_term_to_range.
+
+  DATA: la_r_sort1                     LIKE  LINE OF r_sort1.
+
+  CHECK NOT p_sort1 IS INITIAL.
+
+
+  la_r_sort1-sign    = 'I'.
+  la_r_sort1-option  = 'EQ'.
+
+  la_r_sort1-low     = p_sort1.
+
+  APPEND la_r_sort1 TO r_sort1.
+
+
+ENDFORM.                    " ZF_SEARCH_TERM_TO_RANGE
+
+
+*&---------------------------------------------------------------------*
+*&      Form  ZF_CUSTCLASS_TO_RANGE
+*&---------------------------------------------------------------------*
+* Convert Customer class to range
+*----------------------------------------------------------------------*
+FORM zf_custclass_to_range .
+
+  DATA: la_r_cust_class                   LIKE  LINE OF r_cust_class.
+
+  CHECK NOT p_custcl IS INITIAL.
+
+  la_r_cust_class-sign    = 'I'.
+  la_r_cust_class-option  = 'EQ'.
+
+  la_r_cust_class-low     = p_custcl.
+
+  APPEND la_r_cust_class TO r_cust_class.
+
+
+ENDFORM.                    " ZF_CUSTCLASS_TO_RANGE
+
+
+*&---------------------------------------------------------------------*
+*&      Form  ZF_INDUSTRY_TO_RANGE
+*&---------------------------------------------------------------------*
+* Convert Industry to range
+*----------------------------------------------------------------------*
+FORM zf_industry_to_range .
+
+  DATA: la_r_industry                   LIKE  LINE OF r_industry.
+
+  CHECK NOT p_indust IS INITIAL.
+
+
+  la_r_industry-sign   = 'I'.
+  la_r_industry-option = 'EQ'.
+
+  la_r_industry-low    = p_indust.
+
+  APPEND la_r_industry TO r_industry.
+
+ENDFORM.                    " ZF_INDUSTRY_TO_RANGE
+
+
+*&---------------------------------------------------------------------*
+*&      Form  ZF_SCREEN_VALIDATIONS
+*&---------------------------------------------------------------------*
+* Screen validation when partner is entered; other fields chould be blank
+*----------------------------------------------------------------------*
+FORM zf_screen_validations .
+
+* Partner Numbers or Other Criteria are needed
+*  IF s_patnr  IS INITIAL AND
+*     p_role   IS INITIAL AND
+*     s_eccorg[] IS INITIAL AND
+*     p_custcl IS INITIAL AND
+*     p_sort1  IS INITIAL AND
+*     p_indust IS INITIAL.
+*
+*    MESSAGE text-010 TYPE 'E'.
+*
+*  ENDIF.
+
+* Either Partner Numbers or Other Criteria are needed BUT NOT both
+*  IF s_patnr  IS NOT INITIAL AND
+*   ( p_role   IS NOT INITIAL OR
+*     s_eccorg[] IS NOT INITIAL OR
+*     p_custcl IS NOT INITIAL OR
+*     p_sort1  IS NOT INITIAL OR
+*     p_indust IS NOT INITIAL ).
+*
+*    MESSAGE text-011 TYPE 'E'.
+*
+*  ENDIF.
+
+*  For other Criteria, all fields except Search Term are needed
+*  IF s_patnr  IS INITIAL AND
+*   ( p_role   IS INITIAL OR
+*     s_eccorg[] IS INITIAL OR
+*     p_custcl IS INITIAL OR
+*     p_indust IS INITIAL ).
+*
+*    MESSAGE text-014 TYPE 'E'.
+*
+*  ENDIF.
+
+
+ENDFORM.                    " ZF_SCREEN_VALIDATIONS
+
+
+*&---------------------------------------------------------------------*
+*&      Form  ZF_SALESORG_TO_RANGE
+*&---------------------------------------------------------------------*
+* Convert Sales org to range
+*----------------------------------------------------------------------*
+FORM zf_salesorg_to_range .
+
+*  DATA: la_r_salesorg  LIKE  LINE OF r_salesorg.
+*
+*
+*  CHECK NOT g_crm_sales_org IS INITIAL.
+*
+*  la_r_salesorg-sign   = 'I'.
+*  la_r_salesorg-option = 'EQ'.
+*
+*  la_r_salesorg-low    = g_crm_sales_org.
+*
+*  APPEND la_r_salesorg TO r_salesorg.
+
+ENDFORM.                    " ZF_SALESORG_TO_RANGE
+
+
+*&---------------------------------------------------------------------*
+*&      Form  top_of_page
+*&---------------------------------------------------------------------*
+* To display other criteria fields on TOP-OF-PAGE of ALV report
+*----------------------------------------------------------------------*
+FORM top_of_page.                                           "#EC CALLED
+
+  DATA:  li_header       TYPE  slis_t_listheader,
+         la_header       TYPE  slis_listheader,
+         la_ttxit        TYPE  ttxit,
+         l_str           TYPE  string,
+         li_ttxit        TYPE  TABLE OF ttxit.
+
+
+* Partner Role
+  IF NOT p_role IS INITIAL.
+    la_header-typ  = c_select.
+    la_header-key  = 'Partner Role:'.
+    la_header-info = p_role.
+
+    APPEND la_header TO li_header.
+  ENDIF.
+
+* Sales Org
+  IF NOT s_eccorg[]  IS INITIAL.
+    la_header-typ  = c_select.
+    la_header-key  = 'Sales Org:'.
+    LOOP AT s_eccorg.
+    IF sy-tabix = 1.
+    CONCATENATE s_eccorg-low ',' s_eccorg-high INTO l_str.
+    la_header-info = l_str.
+    ELSE.
+    CONCATENATE la_header-info ',' s_eccorg-low ',' s_eccorg-high INTO la_header-info.
+    ENDIF.
+    CLEAR l_str.
+    ENDLOOP.
+    APPEND la_header TO li_header.
+  ENDIF.
+
+* Customer Class
+  IF NOT p_custcl  IS INITIAL.
+    la_header-typ  = c_select.
+    la_header-key  = 'Customer Class:'.
+    la_header-info = p_custcl.
+
+    APPEND la_header TO li_header.
+  ENDIF.
+
+* Search Term
+  IF NOT p_sort1  IS INITIAL.
+    la_header-typ  = c_select.
+    la_header-key  = 'Search Term:'.
+    la_header-info = p_sort1.
+
+    APPEND la_header TO li_header.
+  ENDIF.
+
+* Industry Sector
+  IF NOT p_indust  IS INITIAL.
+    la_header-typ  = c_select.
+    la_header-key  = 'Industry Sector:'.
+    la_header-info = p_indust.
+
+    APPEND la_header TO li_header.
+  ENDIF.
+
+* Text Types
+  IF NOT s_txtid  IS INITIAL.
+
+    CLEAR: la_header.
+
+    SELECT * INTO TABLE li_ttxit
+      FROM ttxit WHERE tdspras  = sy-langu
+                   AND tdobject = c_bp_tab
+                   AND tdid    IN s_txtid.
+
+    la_header-typ  = c_select.
+    la_header-key  = 'Text Types:'.
+
+    LOOP AT li_ttxit INTO la_ttxit.
+
+      IF sy-tabix = 1.
+        la_header-info = la_ttxit-tdid.
+      ELSE.
+        CONCATENATE la_header-info ',' space la_ttxit-tdid INTO la_header-info.
+      ENDIF.
+
+    ENDLOOP.
+
+    APPEND la_header TO li_header.
+  ENDIF.
+
+
+  CALL FUNCTION 'REUSE_ALV_COMMENTARY_WRITE'
+    EXPORTING
+      it_list_commentary = li_header.
+
+ENDFORM.                    "top_of_page
+
+
+*&---------------------------------------------------------------------*
+*&      Form  ZF_F4_HELP_TEXT_TYPE
+*&---------------------------------------------------------------------*
+* F4 help for text id
+*----------------------------------------------------------------------*
+FORM zf_f4_help_text_type .
+
+  TYPES : BEGIN OF t_text_types,
+           tdid   TYPE tdid,
+           tdtext TYPE tdtext,
+          END   OF t_text_types.
+
+  DATA : li_ttxit        TYPE  TABLE OF t_text_types.
+
+
+  SELECT tdid tdtext
+    INTO TABLE li_ttxit
+    FROM ttxit
+   WHERE tdspras  = sy-langu
+     AND tdobject = c_bp_tab.
+
+  CHECK  li_ttxit IS NOT INITIAL.
+
+* For F4 functionality for text type
+  CALL FUNCTION 'F4IF_INT_TABLE_VALUE_REQUEST'
+    EXPORTING
+      retfield        = 'TDID'
+      dynpprog        = sy-repid
+      dynpnr          = sy-dynnr
+      dynprofield     = 's_txtid'
+      value_org       = 'S'
+    TABLES
+      value_tab       = li_ttxit
+    EXCEPTIONS
+      parameter_error = 1
+      no_values_found = 2
+      OTHERS          = 3.
+
+ENDFORM.                    " ZF_F4_HELP_TEXT_TYPE
+
+
+*&---------------------------------------------------------------------*
+*&      Form  INITIALIZE_VARIABLES
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM initialize_variables .
+  REFRESH: i_partners,
+           i_partner_texts,
+           i_text_descriptions,
+           i_output,
+           i_output_lgtxt,
+           i_fieldcat,
+           i_excluding,
+           i_tevents,
+           i_sort,
+
+           r_role_typ,
+           r_sort1,
+           r_cust_class,
+           r_industry,
+           r_salesorg.
+
+  CLEAR:   g_crm_sales_org.
+ENDFORM.                    " INITIALIZE_VARIABLES
+
+
