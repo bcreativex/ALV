@@ -624,3 +624,29 @@ Screen 100 Modules
 Form: DOWNLOAD_DATA
 Opens a Save File dialog (GUI_FILE_SAVE_DIALOG) with a default filename built from the prefix 'customer_texts_' plus the current date plus '.txt'. If the user confirms a path, calls GUI_DOWNLOAD to write gy_output as an ASCII tab-separated file. Displays a success or error message based on the return code.
 
+
+Start
+Instantiate lcl_main → call run( )
+Main class is created and the run method is triggered
+to begin data collection.
+Join KNA1 / KNVV / STXH
+Fetches customer text headers for Sales Org 1000,
+filtered by current logon language.
+Check Data Found
+If no records returned, show info message
+and exit. Otherwise continue.
+Fetch Text Descriptions (TTXIT)
+Retrieves text ID descriptions for each TDID
+found, filtered by language.
+Call FM READ_TEXT — Build Output
+Loops through each customer and text type, reads
+TLINE content, builds one row per text line.
+Display ALV Grid (Screen 100)
+Creates container and ALV grid, registers event
+handlers, displays gy_output with field catalog.
+User Action — Download or Navigate
+Download button exports file via GUI_DOWNLOAD.
+KUNNR click opens XD02 Texts via BDC.
+Exit — BACK / EXIT / CANCEL
+Leaves to screen 0 and ends execution.
+Stop
