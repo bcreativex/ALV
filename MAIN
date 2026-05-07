@@ -1,11 +1,242 @@
 *&---------------------------------------------------------------------*
+*& Report  ZLSD_RPT10243_CM_EXT_REP
+*&---------------------------------------------------------------------*
+********************************************************************************
+* (c) Copyright St. Jude Medical Inc.                                          *
+********************************************************************************
+* Program Name : ZLSD_RPT10243_CM_TEXT
+* Author       : Krishna Jatav
+* Date Created : 05-May-2026
+* Frequency    : On-Demand
+* RICEF        : RPT10243
+* Transport    : DE1K9A0GPD
+********************************************************************************
+********************************************************************************
+* MODIFICATION LOG                                                             *
+********************************************************************************
+* Date         Developer         TR#          CHG/INC No.     Description      *
+********************************************************************************
+* 05May2026    Krishna Jatav   DE1K9A0GPD    CHGXXXXXXX     Initial Version    *
+********************************************************************************
+REPORT zlsd_rpt10243_cm_text.
+
+* Include for Global type definations, data declarations, class definations
+INCLUDE zlsd_rpt10243_top.
+* Include for Selection screen
+INCLUDE zlsd_rpt10243_sel.
+* Include for Class Implementations, Screen modules, downlaod form
+INCLUDE zlsd_rpt10243_f01.
+
+"----------------------------------------------------------------------
+" START-OF-SELECTION
+"----------------------------------------------------------------------
+START-OF-SELECTION.
+
+" Instantiate main class
+  DATA(lo_main) = NEW lcl_main( ).
+  lo_main->run( ).  " fetches data into global output table
+
+ " Custom container for ALV Grid
+  CALL SCREEN 100.
+
+
+*&---------------------------------------------------------------------*
+*& Include ZLSD_RPT10243_TOP
+*&---------------------------------------------------------------------*
+********************************************************************************
+* (c) Copyright St. Jude Medical Inc.                                          *
+********************************************************************************
+* Program Name : ZLSD_RPT10243_CM_TEXT
+* Include      : ZLSD_RPT10243_TOP
+* Author       : Krishna Jatav
+* Date Created : 05-May-2026
+* Frequency    : On-Demand
+* RICEF        : RPT10243
+* Transport    : DE1K9A0GPD
+********************************************************************************
+********************************************************************************
+* MODIFICATION LOG                                                             *
+********************************************************************************
+* Date         Developer         TR#          CHG/INC No.     Description      *
+********************************************************************************
+* 05May2026    Krishna Jatav   DE1K9A0GPD    CHGXXXXXXX     Initial Version    *
+********************************************************************************
+TABLES: kna1, stxh, knvv, ttxit.
+
+"----------------------------------------------------------------------
+" OUTPUT STRUCTURE — one row per TDLINE (FDS requirement)
+"----------------------------------------------------------------------
+TYPES: BEGIN OF ty_output,
+         kunnr  TYPE kna1-kunnr, " Customer Number
+         name1  TYPE kna1-name1, " Customer Name
+         tdid   TYPE stxh-tdid,  " Text Type ID
+         tdtext TYPE ttxit-tdtext, " Text ID description from TTXIT
+         spras  TYPE stxh-tdspras, " Language Key
+         tdline TYPE tline-tdline, " One row per line (132 chars fixed)
+       END OF ty_output.
+
+TYPES: tty_output TYPE STANDARD TABLE OF ty_output WITH DEFAULT KEY.
+
+"----------------------------------------------------------------------
+" Global Constants
+"----------------------------------------------------------------------
+CONSTANTS:
+
+  c_tdobject       TYPE stxh-tdobject VALUE 'KNA1',
+
+  c_tcode_xd02     TYPE syucomm VALUE 'XD02', " Customer change transaction
+  c_fcode_download TYPE syucomm VALUE 'DOWNLOAD', " Download button function code
+
+  c_prog_sapmf02d  TYPE bdcdata-program VALUE 'SAPMF02D', " XD02 program name
+  c_screen_0101    TYPE bdcdata-dynpro VALUE '0101', " XD02 initial screen
+  c_screen_0110    TYPE bdcdata-dynpro VALUE '0110', " XD02 general data screen
+  c_bdc_cursor     TYPE bdcdata-fnam VALUE 'BDC_CURSOR', " BDC cursor field
+  c_bdc_okcode     TYPE bdcdata-fnam VALUE 'BDC_OKCODE', " BDC ok-code field
+  c_rf02d_kunnr    TYPE bdcdata-fnam VALUE 'RF02D-KUNNR', " Customer number field
+  c_rf02d_d0110    TYPE bdcdata-fnam VALUE 'RF02D-D0110', " Address checkbox field
+  c_kna1_name1     TYPE bdcdata-fnam VALUE 'KNA1-NAME1', " Customer name field
+  c_okcode_enter   TYPE bdcdata-fval VALUE '/00', " Enter/confirm ok-code
+  c_okcode_text    TYPE bdcdata-fval VALUE '=TEXT', " Extras → Texts ok-code
+  c_dynbegin_x     TYPE bdcdata-dynbegin VALUE 'X', " BDC screen begin flag
+
+  c_filetype       TYPE string VALUE 'ASC', " ASCII file type
+  c_separator      TYPE char01 VALUE 'X', " Write field separator
+  c_file_prefix    TYPE string VALUE 'customer_texts_', " Default filename prefix
+  c_file_ext       TYPE string VALUE '.txt', " Default file extension
+
+  c_save_layout    TYPE char01 VALUE 'A', " Allow layout save
+  c_container      TYPE scrfname VALUE 'CONTAINER', " Screen container name
+
+  c_mode           TYPE char01 VALUE 'A',
+  c_w              TYPE char01 VALUE 'W',
+  c_s              TYPE char01 VALUE 'S',
+
+  c_fcode_back     TYPE syucomm VALUE 'BACK', " Back button
+  c_fcode_exit     TYPE syucomm VALUE 'EXIT', " Exit button
+  c_fcode_cancel   TYPE syucomm VALUE 'CANCEL', " Cancel button
+
+  c_pf_status      TYPE sypfkey VALUE 'ZALV_STATUS', " ALV screen PF status
+  c_titlebar       TYPE syrepid VALUE 'TITLE100', " Screen title bar
+
+  c_field_kunnr    TYPE lvc_fname VALUE 'KUNNR', " Customer number field
+  c_field_name1    TYPE lvc_fname VALUE 'NAME1', " Customer name field
+  c_field_tdid     TYPE lvc_fname VALUE 'TDID', " Text type field
+  c_field_tdtext   TYPE lvc_fname VALUE 'TDTEXT', " Text description field
+  c_field_spras    TYPE lvc_fname VALUE 'SPRAS', " Language field
+  c_field_tdline   TYPE lvc_fname VALUE 'TDLINE'. " Text line field
+
+
+
+
+"----------------------------------------------------------------------
+" GLOBAL DATA
+"----------------------------------------------------------------------
+DATA: gy_output TYPE tty_output,
+      gs_output TYPE ty_output.
+
+"----------------------------------------------------------------------
+" CLASS DEFINITIONS
+"----------------------------------------------------------------------
+CLASS lcl_alv DEFINITION.
+  PUBLIC SECTION.
+    DATA: gt_fcat TYPE lvc_t_fcat.  " Field Catalog for ALV
+
+    METHODS:
+      build_fcat,    " Build ALV column definations
+      handle_hotspot_click   " NAVIGATE TO XD02 Text tab
+                  FOR EVENT hotspot_click OF cl_gui_alv_grid
+        IMPORTING e_row_id e_column_id,
+
+      handle_toolbar   " Download Button to ALV bar
+                  FOR EVENT toolbar OF cl_gui_alv_grid
+        IMPORTING e_object e_interactive,
+      handle_user_command   " Handle Download button Click
+                  FOR EVENT user_command OF cl_gui_alv_grid
+        IMPORTING e_ucomm.
+
+ENDCLASS.
+
+CLASS lcl_main DEFINITION.
+  PUBLIC SECTION.
+    METHODS: run.  " Main execution Method
+ENDCLASS.
+
+*&---------------------------------------------------------------------*
+*&  Include           ZLSD_RPT10243_SEL
+*&---------------------------------------------------------------------*
+********************************************************************************
+* (c) Copyright St. Jude Medical Inc.                                          *
+********************************************************************************
+* Program Name : ZLSD_RPT10243_CM_TEXT
+* Include      : ZLSD_RPT10243_SEL
+* Author       : Krishna Jatav
+* Date Created : 05-May-2026
+* Frequency    : On-Demand
+* RICEF        : RPT10243
+* Transport    : DE1K9A0GPD
+********************************************************************************
+********************************************************************************
+* MODIFICATION LOG                                                             *
+********************************************************************************
+* Date         Developer         TR#          CHG/INC No.     Description      *
+********************************************************************************
+* 05May2026    Krishna Jatav   DE1K9A0GPD    CHGXXXXXXX     Initial Version    *
+********************************************************************************
+
+*SELECTION-SCREEN BEGIN OF BLOCK b1 WITH FRAME TITLE text-001.
+*
+*SELECT-OPTIONS:
+* s_kunnr FOR kna1-kunnr.
+*
+*SELECTION-SCREEN END OF BLOCK b1.
+*
+*SELECTION-SCREEN BEGIN OF BLOCK b2 WITH FRAME TITLE text-002.
+*
+*SELECT-OPTIONS:
+* p_vkorg FOR knvv-vkorg OBLIGATORY.
+**
+**PARAMETERS:
+**  s_ktokd TYPE kna1-ktokd,
+**  s_brsch TYPE kna1-brsch,
+**  s_sortl TYPE kna1-sortl.
+**
+*SELECTION-SCREEN END OF BLOCK b2.
+*
+*SELECTION-SCREEN BEGIN OF BLOCK b3 WITH FRAME TITLE text-003.
+*
+*SELECT-OPTIONS:
+* s_tdid FOR stxh-tdid OBLIGATORY.
+*
+*SELECTION-SCREEN END OF BLOCK b3.
+
+
+*&---------------------------------------------------------------------*
 *& Include ZLSD_RPT10243_F01
 *&---------------------------------------------------------------------*
-
+********************************************************************************
+* (c) Copyright St. Jude Medical Inc.                                          *
+********************************************************************************
+* Program Name : ZLSD_RPT10243_CM_TEXT
+* Include      : ZLSD_RPT10243_F01
+* Author       : Krishna Jatav
+* Date Created : 05-May-2026
+* Frequency    : On-Demand
+* RICEF        : RPT10243
+* Transport    : DE1K9A0GPD
+********************************************************************************
+********************************************************************************
+* MODIFICATION LOG                                                             *
+********************************************************************************
+* Date         Developer         TR#          CHG/INC No.     Description      *
+********************************************************************************
+* 05May2026    Krishna Jatav   DE1K9A0GPD    CHGXXXXXXX     Initial Version    *
+********************************************************************************
 "----------------------------------------------------------------------
 " GLOBAL screen objects — declared here, NOT inside lcl_alv
 " (screen modules are not class methods; they need global refs)
 "----------------------------------------------------------------------
+
+" Data Declarations
 DATA: go_container TYPE REF TO cl_gui_custom_container,
       go_grid      TYPE REF TO cl_gui_alv_grid,
       go_alv_obj   TYPE REF TO lcl_alv, " Global so handler stays alive
@@ -36,7 +267,8 @@ CLASS lcl_main IMPLEMENTATION.
           ls_ttxit  TYPE ttxit,
           lt_lines  TYPE STANDARD TABLE OF tline,
           ls_line   TYPE tline,
-          lv_tdtext TYPE ttxit-tdtext.
+          lv_tdtext TYPE ttxit-tdtext,
+          lv_first  TYPE abap_bool.
 
     "--------------------------------------------------------------------
     " Direct JOIN on STXH — avoids FOR ALL ENTRIES type mismatch
@@ -47,11 +279,11 @@ CLASS lcl_main IMPLEMENTATION.
     INNER JOIN knvv AS b ON b~kunnr = a~kunnr
     INNER JOIN stxh AS c ON c~tdname = a~kunnr
     WHERE b~vkorg = @lv_vkorg
-    AND c~tdobject = 'KNA1'
+    AND c~tdobject = @c_tdobject
     AND c~tdspras = @sy-langu.
 
     IF lt_raw IS INITIAL.
-      MESSAGE 'Customers found but no KNA1 texts in STXH. Check SE16 STXH with TDOBJECT=KNA1' TYPE 'I'.
+      MESSAGE : s038(zprd) DISPLAY LIKE c_w.
       RETURN.
     ENDIF.
 
@@ -63,13 +295,15 @@ CLASS lcl_main IMPLEMENTATION.
     INTO CORRESPONDING FIELDS OF TABLE lt_ttxit
 
     FROM ttxit
-    WHERE tdobject = 'KNA1'
+    WHERE tdobject = c_tdobject
     AND tdspras = sy-langu.
 
     "--------------------------------------------------------------------
     " READ_TEXT — one output row per TDLINE
     "--------------------------------------------------------------------
     CLEAR gy_output.
+
+    SORT lt_raw BY kunnr ASCENDING tdid ASCENDING.
 
     LOOP AT lt_raw INTO ls_raw.
 
@@ -88,31 +322,36 @@ CLASS lcl_main IMPLEMENTATION.
           id       = ls_raw-tdid
           language = ls_raw-tdspras
           name     = ls_raw-tdname
-          object   = 'KNA1'
+          object   = c_tdobject
         TABLES
           lines    = lt_lines
         EXCEPTIONS
           OTHERS   = 8.
 
+      IF lt_lines IS NOT INITIAL.
+        lv_first = abap_true.
 
-      LOOP AT lt_lines INTO ls_line.
-        CLEAR gs_output.
-        gs_output-kunnr = ls_raw-kunnr.
-        gs_output-name1 = ls_raw-name1.
-        gs_output-tdid = ls_raw-tdid.
-        gs_output-tdtext = lv_tdtext.
-        gs_output-spras = ls_raw-tdspras.
-        gs_output-tdline = ls_line-tdline.
+        LOOP AT lt_lines INTO ls_line.
+          IF ls_line-tdline IS NOT INITIAL.
 
-        APPEND gs_output TO gy_output.
-      ENDLOOP.
+            CLEAR gs_output.
+            IF lv_first = abap_true.
+              gs_output-kunnr = ls_raw-kunnr.
+              gs_output-name1 = ls_raw-name1.
+              gs_output-tdid = ls_raw-tdid.
+              gs_output-tdtext = lv_tdtext.
+              gs_output-spras = ls_raw-tdspras.
+              lv_first = abap_false.
+            ENDIF.
+            gs_output-tdline = ls_line-tdline.
+            APPEND gs_output TO gy_output.
+
+          ENDIF.
+        ENDLOOP.
+      ENDIF.
 
     ENDLOOP.
-
-    SORT gy_output BY kunnr ASCENDING tdid ASCENDING.
-
   ENDMETHOD.
-
 
 
 ENDCLASS.
@@ -122,18 +361,14 @@ ENDCLASS.
 *=====================================================================*
 CLASS lcl_alv IMPLEMENTATION.
 
-  METHOD display.
-* CALL SCREEN 100.
-  ENDMETHOD.
-
   METHOD build_fcat.
     DATA ls_fc TYPE lvc_s_fcat.
     CLEAR gt_fcat.
 
     " KUNNR — hotspot column
     CLEAR ls_fc.
-    ls_fc-fieldname = 'KUNNR'.
-    ls_fc-coltext = 'Customer'.
+    ls_fc-fieldname = c_field_kunnr.
+    ls_fc-coltext = text-004.
     ls_fc-outputlen = 10.
     ls_fc-hotspot = abap_true.
     ls_fc-key = abap_true. " Freeze on scroll
@@ -141,99 +376,117 @@ CLASS lcl_alv IMPLEMENTATION.
 
     " NAME1
     CLEAR ls_fc.
-    ls_fc-fieldname = 'NAME1'.
-    ls_fc-coltext = 'Customer Name'.
+    ls_fc-fieldname = c_field_name1.
+    ls_fc-coltext = text-005.
     ls_fc-outputlen = 35.
     APPEND ls_fc TO gt_fcat.
 
     " TDID
     CLEAR ls_fc.
-    ls_fc-fieldname = 'TDID'.
-    ls_fc-coltext = 'Text Type'.
+    ls_fc-fieldname = c_field_tdid.
+    ls_fc-coltext = text-006.
     ls_fc-outputlen = 8.
     APPEND ls_fc TO gt_fcat.
 
     " TDTEXT — description from TTXIT
     CLEAR ls_fc.
-    ls_fc-fieldname = 'TDTEXT'.
-    ls_fc-coltext = 'Description'.
+    ls_fc-fieldname = c_field_tdtext.
+    ls_fc-coltext = text-007.
     ls_fc-outputlen = 30.
     APPEND ls_fc TO gt_fcat.
 
     " SPRAS
     CLEAR ls_fc.
-    ls_fc-fieldname = 'SPRAS'.
-    ls_fc-coltext = 'Lang'.
+    ls_fc-fieldname = c_field_spras.
+    ls_fc-coltext = text-008.
     ls_fc-outputlen = 5.
     APPEND ls_fc TO gt_fcat.
 
     " TDLINE — actual text content
     CLEAR ls_fc.
-    ls_fc-fieldname = 'TDLINE'.
-    ls_fc-coltext = 'Text Line'.
+    ls_fc-fieldname = c_field_tdline.
+    ls_fc-coltext = text-009.
     ls_fc-outputlen = 80.
     APPEND ls_fc TO gt_fcat.
 
   ENDMETHOD.
 
   METHOD handle_hotspot_click.
-    " Only react on KUNNR column
-    CHECK e_column_id-fieldname = 'KUNNR'.
 
-    " Read row from global output table using row index
+    CHECK e_column_id-fieldname = c_field_kunnr.
+
     READ TABLE gy_output INTO DATA(ls_row) INDEX e_row_id-index.
     CHECK sy-subrc = 0.
     CHECK ls_row-kunnr IS NOT INITIAL.
 
-    " Navigate to XD03 (display) — change XD02 for edit mode
+    DATA: lt_bdc TYPE TABLE OF bdcdata,
+          ls_bdc TYPE bdcdata.
 
-*    DATA: lt_bdc TYPE TABLE OF bdcdata,
-*          ls_bdc TYPE bdcdata.
-*
-*    DEFINE bdc_dynpro.
-*      CLEAR ls_bdc.
-*      ls_bdc-program  = &1.
-*      ls_bdc-dynpro   = &2.
-*      ls_bdc-dynbegin = 'X'.
-*      APPEND ls_bdc TO lt_bdc.
-*    END-OF-DEFINITION.
-*
-*    DEFINE bdc_field.
-*      CLEAR ls_bdc.
-*      ls_bdc-fnam = &1.
-*      ls_bdc-fval = &2.
-*      APPEND ls_bdc TO lt_bdc.
-*    END-OF-DEFINITION.
-*
-*    bdc_dynpro 'SAPMF02D' '0100'.
-*    bdc_field  'RF02D-KUNNR' ls_row-kunnr.
-*    bdc_field  'BDC_OKCODE' '/00'.
-*
-*    " Jump to Text tab
-*    bdc_dynpro 'SAPMF02D' '0110'.
-*    bdc_field  'BDC_OKCODE' '=TX'.
-    SET PARAMETER ID 'KUN' FIELD ls_row-kunnr.
-    CALL TRANSACTION 'XD02' AND SKIP FIRST SCREEN.
-*      USING lt_bdc
-*      MODE 'E'
-*      UPDATE 'S'.
+    " Screen 0101 — XD02 initial screen
+    CLEAR ls_bdc.
+    ls_bdc-program = c_prog_sapmf02d.
+    ls_bdc-dynpro = c_screen_0101.
+    ls_bdc-dynbegin = c_dynbegin_x.
+    APPEND ls_bdc TO lt_bdc.
 
+    CLEAR ls_bdc.
+    ls_bdc-fnam = c_bdc_cursor.
+    ls_bdc-fval = c_rf02d_kunnr.
+    APPEND ls_bdc TO lt_bdc.
 
-*    CALL TRANSACTION 'XD03' AND SKIP FIRST SCREEN.
+    CLEAR ls_bdc.
+    ls_bdc-fnam = c_rf02d_kunnr.
+    ls_bdc-fval = ls_row-kunnr. " Customer number from clicked row
+    APPEND ls_bdc TO lt_bdc.
+
+    CLEAR ls_bdc.
+    ls_bdc-fnam = c_rf02d_d0110.  "address checkbox
+    ls_bdc-fval = c_dynbegin_x.
+    APPEND ls_bdc TO lt_bdc.
+
+    CLEAR ls_bdc.
+    ls_bdc-fnam = c_bdc_okcode.
+    ls_bdc-fval = c_okcode_enter.
+    APPEND ls_bdc TO lt_bdc.
+
+    " Screen 0110 — General Data, navigate to Texts
+    CLEAR ls_bdc.
+    ls_bdc-program = c_prog_sapmf02d.
+    ls_bdc-dynpro = c_screen_0110.
+    ls_bdc-dynbegin = c_dynbegin_x.
+    APPEND ls_bdc TO lt_bdc.
+
+    CLEAR ls_bdc.
+    ls_bdc-fnam = c_bdc_cursor.
+    ls_bdc-fval = c_kna1_name1.
+    APPEND ls_bdc TO lt_bdc.
+
+    CLEAR ls_bdc.
+    ls_bdc-fnam = c_bdc_okcode.
+    ls_bdc-fval = c_okcode_text. " Extras → Texts function code
+    APPEND ls_bdc TO lt_bdc.
+
+    " Call XD02 in display mode — MODE 'E' shows screens to user
+    CALL TRANSACTION c_tcode_xd02
+    USING lt_bdc
+    MODE c_mode
+    UPDATE c_s.
+
   ENDMETHOD.
 
   METHOD handle_toolbar.
+
     DATA ls_button TYPE stb_button.
     CLEAR ls_button.
-    ls_button-function = 'DOWNLOAD'.
+    ls_button-function = c_fcode_download.
     ls_button-butn_type = 0.
     APPEND ls_button TO e_object->mt_toolbar.
+
   ENDMETHOD.
 
   METHOD handle_user_command.
     CASE e_ucomm.
-
-      WHEN 'DOWNLOAD'.
+      WHEN c_fcode_download.
         PERFORM download_data.
     ENDCASE.
   ENDMETHOD.
@@ -245,19 +498,18 @@ ENDCLASS.
 *=====================================================================*
 
 MODULE status_0100 OUTPUT.
-  SET PF-STATUS 'ZALV_STATUS'.
+  SET PF-STATUS c_pf_status.
 
-  " Layout — NO no_toolbar here (download button needs toolbar)
+  SET TITLEBAR c_titlebar.
+
   CLEAR gs_layout.
-  gs_layout-cwidth_opt = abap_true.
   gs_layout-no_toolbar = abap_true. " hides alv grid internal toolbar
-  gs_layout-edit = abap_false.
 
   IF go_container IS INITIAL.
 
     CREATE OBJECT go_container
       EXPORTING
-        container_name = 'CONTAINER'.
+        container_name = c_container.
 
     CREATE OBJECT go_grid
       EXPORTING
@@ -275,7 +527,7 @@ MODULE status_0100 OUTPUT.
     CALL METHOD go_grid->set_table_for_first_display
       EXPORTING
         is_layout       = gs_layout
-        i_save          = 'A'
+        i_save          = c_save_layout
       CHANGING
         it_outtab       = gy_output
         it_fieldcatalog = go_alv_obj->gt_fcat
@@ -290,10 +542,8 @@ ENDMODULE.
 
 MODULE user_command_0100 INPUT.
   CASE sy-ucomm.
-    WHEN 'BACK' OR 'EXIT' OR 'CANCEL'.
+    WHEN c_fcode_back OR c_fcode_exit OR c_fcode_cancel.
       LEAVE TO SCREEN 0.
-    WHEN 'DOWNLOAD'.
-      PERFORM download_data.
   ENDCASE.
 ENDMODULE.
 
@@ -306,13 +556,13 @@ FORM download_data.
         lv_default TYPE string.
 
   " Default filename with timestamp
-  CONCATENATE 'customer_texts_' sy-datum+4(4) '.txt'
+  CONCATENATE c_file_prefix sy-datum+4(4) c_file_ext
   INTO lv_default.
 
   " Let user choose save location (fixes hardcoded C:\temp bug)
   CALL FUNCTION 'GUI_FILE_SAVE_DIALOG'
     EXPORTING
-      window_title      = 'Save Customer Texts'
+      window_title      = text-010
       default_file_name = lv_default
     IMPORTING
       filename          = lv_file
@@ -324,17 +574,17 @@ FORM download_data.
   CALL FUNCTION 'GUI_DOWNLOAD'
     EXPORTING
       filename              = lv_file
-      filetype              = 'ASC'
-      write_field_separator = 'X'
+      filetype              = c_filetype
+      write_field_separator = c_separator
     TABLES
       data_tab              = gy_output
     EXCEPTIONS
       OTHERS                = 1.
 
   IF sy-subrc = 0.
-    MESSAGE 'Download completed successfully.' TYPE 'S'.
+    MESSAGE s039(zprd).
   ELSE.
-    MESSAGE 'Download failed.' TYPE 'E'.
+    MESSAGE s235(zprd) DISPLAY LIKE c_mode.
   ENDIF.
 
 ENDFORM.
