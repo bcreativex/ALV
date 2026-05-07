@@ -588,3 +588,39 @@ FORM download_data.
   ENDIF.
 
 ENDFORM.
+
+Program Overview
+This report program displays and exports customer master text data. It reads customer texts from SAP (KNA1 / STXH / TLINE), displays them in an ALV grid with one output row per text line, and allows the user to download the results or navigate directly to XD02 to view or edit a customer's texts.
+Includes
+ZLSD_RPT10243_TOP – This include contains global type definitions, data declarations, constants, and class definitions.
+•	Defines output structure ty_output with fields KUNNR, NAME1, TDID, TDTEXT, SPRAS, TDLINE — one row per text line as per FDS requirement.
+•	Declares global output table gy_output and work area gs_output used across all includes.
+•	Defines all constants: object/table names, BDC field names and ok-codes for XD02 navigation, file type and naming defaults, ALV container name and field names.
+•	Declares class lcl_alv with methods: build_fcat, handle_hotspot_click, handle_toolbar, handle_user_command.
+•	Declares class lcl_main with method: run.
+
+ZLSD_RPT10243_SEL – This include contains the selection screen definition. All fields are currently commented out and reserved for future use. Planned fields: S_KUNNR (Customer Number), P_VKORG (Sales Org, mandatory), S_TDID (Text ID, mandatory).
+
+ZLSD_RPT10243_F01 – This include contains all class implementations (lcl_main and lcl_alv), screen 100 modules, the DOWNLOAD_DATA form, and global screen object declarations (go_container, go_grid, go_alv_obj, gs_layout).
+START-OF-SELECTION
+Instantiates lcl_main and calls its run( ) method to fetch and populate the global output table. Then calls CALL SCREEN 100 to render the ALV grid.
+Class: lcl_main
+Methods:
+•	RUN – Main execution method. Fetches customer text data and populates gy_output.
+-	Joins KNA1, KNVV, and STXH to get all customer text headers for Sales Org 1000, filtered by current logon language.
+-	Fetches text ID descriptions from TTXIT for each TDID found.
+-	Calls FM READ_TEXT for each customer and text type to retrieve actual text lines from TLINE.
+-	Builds one output row per non-empty TDLINE. Customer and header fields (KUNNR, NAME1, TDID, TDTEXT) are populated only on the first line of each text block.
+-	Returns without output and issues an info message if no data is found.
+Class: lcl_alv
+Methods:
+•	BUILD_FCAT – Builds the ALV field catalog. Defines six output columns: KUNNR (hotspot-enabled and key-frozen), NAME1, TDID, TDTEXT, SPRAS, and TDLINE. Column labels come from text symbols; output lengths are fixed per column.
+•	HANDLE_HOTSPOT_CLICK – Fires when the user clicks a KUNNR cell. Reads the customer number from the clicked row and launches transaction XD02 via BDC, navigating automatically to the Texts screen (Extras > Texts) for that customer.
+•	HANDLE_TOOLBAR – Adds a custom Download button to the ALV toolbar using function code DOWNLOAD.
+•	HANDLE_USER_COMMAND – Handles the Download button click event and calls form DOWNLOAD_DATA.
+Screen 100 Modules
+•	STATUS_0100 (OUTPUT) – Sets PF-status and title bar. On first call: creates the custom container and ALV grid object, registers event handlers for hotspot, toolbar, and user command, displays gy_output via set_table_for_first_display, and activates the interactive toolbar.
+•	USER_COMMAND_0100 (INPUT) – Handles BACK, EXIT, and CANCEL function codes by leaving to screen 0.
+Form: DOWNLOAD_DATA
+Opens a Save File dialog (GUI_FILE_SAVE_DIALOG) with a default filename built from the prefix 'customer_texts_' plus the current date plus '.txt'. If the user confirms a path, calls GUI_DOWNLOAD to write gy_output as an ASCII tab-separated file. Displays a success or error message based on the return code.
+
