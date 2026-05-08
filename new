@@ -379,3 +379,57 @@ FORM download_data.
   ENDIF.
 
 ENDFORM.
+
+
+
+
+
+
+
+
+
+
+
+
+METHOD build_fcat.
+  CLEAR gt_fcat.
+
+  " KUNNR — hotspot column
+  APPEND VALUE #(
+    fieldname = c_field_kunnr
+    coltext   = text-004
+    outputlen = 10
+    hotspot   = abap_true
+    key       = abap_true ) TO gt_fcat.
+
+  " NAME1
+  APPEND VALUE #(
+    fieldname = c_field_name1
+    coltext   = text-005
+    outputlen = 35 ) TO gt_fcat.
+
+  " TDID — Text Type
+  APPEND VALUE #(
+    fieldname = c_field_tdid
+    coltext   = text-006
+    outputlen = 8 ) TO gt_fcat.
+
+  " TDTEXT — Text Description from TTXIT
+  APPEND VALUE #(
+    fieldname = c_field_tdtext
+    coltext   = text-007
+    outputlen = 30 ) TO gt_fcat.
+
+  " SPRAS — Language
+  APPEND VALUE #(
+    fieldname = c_field_spras
+    coltext   = text-008
+    outputlen = 5 ) TO gt_fcat.
+
+  " TDLINE — Actual text content
+  APPEND VALUE #(
+    fieldname = c_field_tdline
+    coltext   = text-009
+    outputlen = 80 ) TO gt_fcat.
+
+ENDMETHOD.
