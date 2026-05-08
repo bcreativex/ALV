@@ -433,3 +433,20 @@ METHOD build_fcat.
     outputlen = 80 ) TO gt_fcat.
 
 ENDMETHOD.
+
+
+
+" First line — full customer info + first text line
+          APPEND VALUE #(
+            kunnr  = ls_raw-kunnr
+            name1  = ls_raw-name1
+            tdid   = ls_raw-tdid
+            tdtext = lv_tdtext
+            spras  = ls_raw-tdspras
+            tdline = lt_lines[ 1 ]-tdline ) TO gt_output.
+
+          " Remaining lines — only tdline, customer info stays blank
+          APPEND LINES OF VALUE tty_output(
+            FOR la_line1 IN lt_lines FROM 2
+            WHERE ( tdline IS NOT INITIAL )
+            ( tdline = la_line1-tdline ) ) TO gt_output.
