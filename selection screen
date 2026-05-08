@@ -1,0 +1,93 @@
+*&---------------------------------------------------------------------*
+*& Include ZLSD_RPT10243_SEL
+*& Selection Screen Definition
+*&---------------------------------------------------------------------*
+
+"----------------------------------------------------------------------
+" Block 1 — Customer Number
+"----------------------------------------------------------------------
+SELECTION-SCREEN BEGIN OF BLOCK b1 WITH FRAME TITLE text-001.
+  SELECT-OPTIONS s_kunnr FOR kna1-kunnr.          " Customer Number
+SELECTION-SCREEN END OF BLOCK b1.
+
+"----------------------------------------------------------------------
+" Block 2 — Selection Criteria
+"----------------------------------------------------------------------
+SELECTION-SCREEN BEGIN OF BLOCK b2 WITH FRAME TITLE text-002.
+  SELECT-OPTIONS s_vkorg FOR knvv-vkorg OBLIGATORY NO INTERVALS. " Sales Org
+  SELECT-OPTIONS s_ktokd FOR kna1-ktokd.          " Account Group
+  SELECT-OPTIONS s_brsch FOR kna1-brsch.          " Industry
+  SELECT-OPTIONS s_sortl FOR kna1-sortl.          " Search Term
+SELECTION-SCREEN END OF BLOCK b2.
+
+"----------------------------------------------------------------------
+" Block 3 — Text Selection
+"----------------------------------------------------------------------
+SELECTION-SCREEN BEGIN OF BLOCK b3 WITH FRAME TITLE text-003.
+  SELECT-OPTIONS s_tdid FOR stxh-tdid OBLIGATORY. " Text ID
+SELECTION-SCREEN END OF BLOCK b3.
+
+"----------------------------------------------------------------------
+" F4 help for Text ID — restricted to KNA1 object
+"----------------------------------------------------------------------
+AT SELECTION-SCREEN ON VALUE-REQUEST FOR s_tdid-low.
+  PERFORM f4_text_id USING 'S_TDID-LOW'.
+
+AT SELECTION-SCREEN ON VALUE-REQUEST FOR s_tdid-high.
+  PERFORM f4_text_id USING 'S_TDID-HIGH'.
+
+"----------------------------------------------------------------------
+" Validate Sales Org
+"----------------------------------------------------------------------
+AT SELECTION-SCREEN ON s_vkorg.
+  IF s_vkorg[] IS NOT INITIAL.
+    SELECT SINGLE vkorg FROM tvko
+      INTO @DATA(lv_chk)
+      WHERE vkorg = @s_vkorg-low.
+    IF sy-subrc <> 0.
+      MESSAGE e001(zprd).
+    ENDIF.
+  ENDIF.
+
+"----------------------------------------------------------------------
+" F4 FORM for Text ID
+"----------------------------------------------------------------------
+FORM f4_text_id USING iv_field TYPE dynfnam.
+
+  TYPES: BEGIN OF ty_ttxit,
+           tdid   TYPE tdid,
+           tdtext TYPE tdtext,
+         END OF ty_ttxit.
+
+  DATA: lt_ttxit  TYPE TABLE OF ty_ttxit,
+        lt_return TYPE TABLE OF ddshretval.
+
+  SELECT tdid, tdtext
+    INTO CORRESPONDING FIELDS OF TABLE @lt_ttxit
+    FROM ttxit
+    WHERE tdobject = @c_tdobject
+      AND spras    = @sy-langu
+    ORDER BY tdid.
+
+  CALL FUNCTION 'F4IF_INT_TABLE_VALUE_REQUEST'
+    EXPORTING
+      retfield        = 'TDID'
+      dynpprog        = sy-repid
+      dynpnr          = sy-dynnr
+      dynpfld         = iv_field
+      value_org       = 'S'
+      multiple_choice = abap_true
+    TABLES
+      value_tab       = lt_ttxit
+      return_tab      = lt_return
+    EXCEPTIONS
+      OTHERS          = 3.
+
+  LOOP AT lt_return INTO DATA(ls_ret).
+    APPEND VALUE #(
+      sign   = 'I'
+      option = 'EQ'
+      low    = ls_ret-fieldval ) TO s_tdid.
+  ENDLOOP.
+
+ENDFORM.
