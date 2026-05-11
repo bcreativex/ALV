@@ -1,0 +1,33 @@
+" Build range tables from PARAMETER values
+DATA: lr_ktokd TYPE RANGE OF kna1-ktokd,
+      lr_kukla TYPE RANGE OF kna1-kukla,
+      lr_sortl TYPE RANGE OF kna1-sortl,
+      lr_brsch TYPE RANGE OF kna1-brsch.
+
+IF p_ktokd IS NOT INITIAL.
+  APPEND VALUE #(
+    sign   = if_slad_select_options=>c_signs-including
+    option = if_slad_select_options=>c_options-eq
+    low    = p_ktokd ) TO lr_ktokd.
+ENDIF.
+
+IF p_kukla IS NOT INITIAL.
+  APPEND VALUE #(
+    sign   = if_slad_select_options=>c_signs-including
+    option = if_slad_select_options=>c_options-eq
+    low    = p_kukla ) TO lr_kukla.
+ENDIF.
+
+IF p_sortl IS NOT INITIAL.
+  APPEND VALUE #(
+    sign   = if_slad_select_options=>c_signs-including
+    option = if_slad_select_options=>c_options-eq
+    low    = p_sortl ) TO lr_sortl.
+ENDIF.
+
+IF p_brsch IS NOT INITIAL.
+  APPEND VALUE #(
+    sign   = if_slad_select_options=>c_signs-including
+    option = if_slad_select_options=>c_options-eq
+    low    = p_brsch ) TO lr_brsch.
+ENDIF.
