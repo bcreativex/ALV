@@ -1,0 +1,58 @@
+METHOD download_data.
+
+  " Header structure for Excel column titles
+  TYPES: BEGIN OF ty_head,
+           field1(50) TYPE c,
+         END OF ty_head.
+
+  DATA: lt_head    TYPE TABLE OF ty_head,
+        lv_file    TYPE string,
+        lv_default TYPE string.
+
+  " Build column headers using APPEND VALUE #() — new syntax
+  APPEND VALUE #( field1 = text-004 ) TO lt_head.  " Customer
+  APPEND VALUE #( field1 = text-005 ) TO lt_head.  " Customer Name
+  APPEND VALUE #( field1 = text-006 ) TO lt_head.  " Text Type
+  APPEND VALUE #( field1 = text-007 ) TO lt_head.  " Description
+  APPEND VALUE #( field1 = text-008 ) TO lt_head.  " Lang
+  APPEND VALUE #( field1 = text-009 ) TO lt_head.  " Text Line
+
+  " Build default filename
+  CONCATENATE c_file_prefix sy-datum+4(4) c_file_ext
+    INTO lv_default.
+
+  " Let user choose save location
+  CALL FUNCTION 'GUI_FILE_SAVE_DIALOG'
+    EXPORTING
+      window_title      = text-010
+      default_file_name = lv_default
+    IMPORTING
+      filename          = lv_file
+    EXCEPTIONS
+      OTHERS            = 1.
+  IF sy-subrc <> 0.
+    RETURN.
+  ENDIF.
+
+  IF lv_file IS INITIAL.
+    RETURN.
+  ENDIF.
+
+  CALL FUNCTION 'GUI_DOWNLOAD'
+    EXPORTING
+      filename              = lv_file
+      filetype              = 'ASC'
+      write_field_separator = c_separator
+    TABLES
+      data_tab              = gt_output
+      fieldnames            = lt_head
+    EXCEPTIONS
+      OTHERS                = 1.
+
+  IF sy-subrc = 0.
+    MESSAGE s039(zprd).
+  ELSE.
+    MESSAGE s235(zprd) DISPLAY LIKE c_mode.
+  ENDIF.
+
+ENDMETHOD.
