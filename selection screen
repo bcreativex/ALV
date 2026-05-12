@@ -91,3 +91,85 @@ FORM f4_text_id USING iv_field TYPE dynfnam.
   ENDLOOP.
 
 ENDFORM.
+
+
+
+"----------------------------------------------------------------------
+" General validation — runs on every F8
+"----------------------------------------------------------------------
+AT SELECTION-SCREEN.
+  " Sales Org is mandatory — already handled by OBLIGATORY
+  " Text ID is mandatory — already handled by OBLIGATORY
+  " But add cross-field validation if needed here
+
+"----------------------------------------------------------------------
+" Sales Org — validate exists in TVKO
+"----------------------------------------------------------------------
+AT SELECTION-SCREEN ON s_vkorg.
+  IF s_vkorg[] IS NOT INITIAL.
+    SELECT SINGLE @abap_true
+      INTO @DATA(lv_vkorg_exists)
+      FROM tvko
+      WHERE vkorg = @s_vkorg-low.
+    IF lv_vkorg_exists IS INITIAL.
+      MESSAGE e001(zprd) WITH s_vkorg-low.
+    ENDIF.
+  ENDIF.
+
+"----------------------------------------------------------------------
+" Customer Number — validate exists in KNA1 if entered
+"----------------------------------------------------------------------
+AT SELECTION-SCREEN ON s_kunnr.
+  IF s_kunnr[] IS NOT INITIAL.
+    SELECT SINGLE @abap_true
+      INTO @DATA(lv_kunnr_exists)
+      FROM kna1
+      WHERE kunnr = @s_kunnr-low.
+    IF lv_kunnr_exists IS INITIAL.
+      MESSAGE e001(zprd) WITH s_kunnr-low.   " reuse or create new msg
+    ENDIF.
+  ENDIF.
+
+"----------------------------------------------------------------------
+" Account Group — validate exists in T077D if entered
+"----------------------------------------------------------------------
+AT SELECTION-SCREEN ON p_ktokd.
+  IF p_ktokd IS NOT INITIAL.
+    SELECT SINGLE @abap_true
+      INTO @DATA(lv_ktokd_exists)
+      FROM t077d
+      WHERE ktokd = @p_ktokd.
+    IF lv_ktokd_exists IS INITIAL.
+      MESSAGE e001(zprd) WITH p_ktokd.
+    ENDIF.
+  ENDIF.
+
+"----------------------------------------------------------------------
+" Industry — validate exists in T016 if entered
+"----------------------------------------------------------------------
+AT SELECTION-SCREEN ON p_brsch.
+  IF p_brsch IS NOT INITIAL.
+    SELECT SINGLE @abap_true
+      INTO @DATA(lv_brsch_exists)
+      FROM t016
+      WHERE brsch = @p_brsch.
+    IF lv_brsch_exists IS INITIAL.
+      MESSAGE e001(zprd) WITH p_brsch.
+    ENDIF.
+  ENDIF.
+
+"----------------------------------------------------------------------
+" Text ID — validate exists in TTXIT for KNA1 object if entered
+"----------------------------------------------------------------------
+AT SELECTION-SCREEN ON s_tdid.
+  IF s_tdid[] IS NOT INITIAL.
+    SELECT SINGLE @abap_true
+      INTO @DATA(lv_tdid_exists)
+      FROM ttxit
+      WHERE tdobject = @c_tdobject
+        AND tdid     = @s_tdid-low
+        AND tdspras  = @sy-langu.
+    IF lv_tdid_exists IS INITIAL.
+      MESSAGE e001(zprd) WITH s_tdid-low.
+    ENDIF.
+  ENDIF.
