@@ -173,3 +173,31 @@ AT SELECTION-SCREEN ON s_tdid.
       MESSAGE e001(zprd) WITH s_tdid-low.
     ENDIF.
   ENDIF.
+
+
+
+
+" Customer validation
+IF NOT EXISTS ( SELECT kunnr FROM kna1
+                WHERE kunnr = @s_kunnr-low ).
+  MESSAGE e254(zprd) WITH s_kunnr-low.
+ENDIF.
+
+" Sales Org validation
+IF NOT EXISTS ( SELECT vkorg FROM tvko
+                WHERE vkorg = @s_vkorg-low ).
+  MESSAGE e251(zprd) WITH s_vkorg-low.
+ENDIF.
+
+" Account Group validation
+IF NOT EXISTS ( SELECT ktokd FROM t077d
+                WHERE ktokd = @p_ktokd ).
+  MESSAGE e256(zprd) WITH p_ktokd.
+ENDIF.
+
+" Text ID validation
+IF NOT EXISTS ( SELECT tdid FROM ttxit
+                WHERE tdobject = @c_tdobject
+                AND tdid = @s_tdid-low ).
+  MESSAGE e257(zprd) WITH s_tdid-low.
+ENDIF.
