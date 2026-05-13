@@ -1,0 +1,165 @@
+*&---------------------------------------------------------------------*
+*&  Include           ZLSD_RPT10243_SEL
+*&---------------------------------------------------------------------*
+********************************************************************************
+* (c) Copyright St. Jude Medical Inc.                                          *
+********************************************************************************
+* Program Name : ZLSD_RPT10243_CM_TEXT
+* Include      : ZLSD_RPT10243_SEL
+* Author       : Krishna Jatav
+* Date Created : 05-May-2026
+* Frequency    : On-Demand
+* RICEF        : RPT10243
+* Transport    : DE1K9A0GPD
+********************************************************************************
+********************************************************************************
+* MODIFICATION LOG                                                             *
+********************************************************************************
+* Date         Developer         TR#          CHG/INC No.     Description      *
+********************************************************************************
+* 05May2026    Krishna Jatav   DE1K9A0GPD    CHGXXXXXXX     Initial Version    *
+********************************************************************************
+
+"----------------------------------------------------------------------
+" Block 1 — Customer Number
+"----------------------------------------------------------------------
+SELECTION-SCREEN BEGIN OF BLOCK b1 WITH FRAME TITLE text-001.
+SELECT-OPTIONS s_kunnr FOR kna1-kunnr.          " Customer Number
+SELECTION-SCREEN END OF BLOCK b1.
+
+"----------------------------------------------------------------------
+" Block 2 — Selection Criteria
+"----------------------------------------------------------------------
+SELECTION-SCREEN BEGIN OF BLOCK b2 WITH FRAME TITLE text-002.
+PARAMETERS p_ktokd TYPE kna1-ktokd.          " Account Group
+SELECT-OPTIONS s_vkorg FOR knvv-vkorg OBLIGATORY NO INTERVALS. " Sales Org
+PARAMETERS  p_kukla TYPE kna1-kukla.         " Customer Classification
+PARAMETERS p_sortl TYPE kna1-sortl.          " Search Term
+PARAMETERS p_brsch TYPE kna1-brsch.          " Industry
+
+SELECTION-SCREEN END OF BLOCK b2.
+
+"----------------------------------------------------------------------
+" Block 3 — Text Selection
+"----------------------------------------------------------------------
+SELECTION-SCREEN BEGIN OF BLOCK b3 WITH FRAME TITLE text-003.
+SELECT-OPTIONS s_tdid FOR stxh-tdid OBLIGATORY. " Text ID
+SELECTION-SCREEN END OF BLOCK b3.
+
+"----------------------------------------------------------------------
+" F4 help for Text ID — restricted to KNA1 object
+"----------------------------------------------------------------------
+
+AT SELECTION-SCREEN ON VALUE-REQUEST FOR s_tdid-low.
+  PERFORM f4_text_id USING 'S_TDID-LOW'.
+
+AT SELECTION-SCREEN ON VALUE-REQUEST FOR s_tdid-high.
+  PERFORM f4_text_id USING 'S_TDID-HIGH'.
+
+  "----------------------------------------------------------------------
+  " Validate Sales Org
+  "----------------------------------------------------------------------
+
+AT SELECTION-SCREEN ON s_vkorg.
+  IF s_vkorg[] IS NOT INITIAL.
+    SELECT SINGLE @abap_true
+       INTO @DATA(lv_vkorg_exists)
+       FROM tvko
+       WHERE vkorg = @s_vkorg-low.
+    IF lv_vkorg_exists IS INITIAL.
+      MESSAGE e251(zprd) WITH s_vkorg-low.
+    ENDIF.
+  ENDIF.
+
+  "----------------------------------------------------------------------
+  " Customer Number — validate exists in KNA1 if entered
+  "----------------------------------------------------------------------
+
+AT SELECTION-SCREEN ON s_kunnr.
+  IF s_kunnr[] IS NOT INITIAL.
+    SELECT SINGLE @abap_true
+      INTO @DATA(lv_kunnr_exists)
+      FROM kna1
+      WHERE kunnr = @s_kunnr-low.
+    IF sy-subrc <> 0..
+      MESSAGE e254(zprd) WITH s_kunnr-low.
+    ENDIF.
+  ENDIF.
+
+  "----------------------------------------------------------------------
+  " Account Group — validate exists in T077D if entered
+  "----------------------------------------------------------------------
+
+AT SELECTION-SCREEN ON p_ktokd.
+  IF p_ktokd IS NOT INITIAL.
+    SELECT SINGLE @abap_true
+      INTO @DATA(lv_ktokd_exists)
+      FROM t077d
+      WHERE ktokd = @p_ktokd.
+    IF sy-subrc <> 0.
+      MESSAGE e256(zprd) WITH p_ktokd.
+    ENDIF.
+  ENDIF.
+
+  "----------------------------------------------------------------------
+  " Text ID — validate exists in TTXIT for KNA1 object if entered
+  "----------------------------------------------------------------------
+
+AT SELECTION-SCREEN ON s_tdid.
+  IF s_tdid[] IS NOT INITIAL.
+    SELECT SINGLE @abap_true
+     INTO @DATA(lv_tdid_exists)
+     FROM ttxit
+     WHERE tdobject = @c_tdobject
+       AND tdid     = @s_tdid-low
+       AND tdspras  = @sy-langu.
+    IF lv_tdid_exists IS INITIAL.
+      MESSAGE e257(zprd) WITH s_tdid-low.
+    ENDIF.
+  ENDIF.
+
+  "----------------------------------------------------------------------
+  " F4 FORM for Text ID
+  "----------------------------------------------------------------------
+FORM f4_text_id USING iv_field TYPE dynfnam.
+
+  DATA: "lt_ttxit  TYPE TABLE OF ty_ttxit,
+  lt_return TYPE TABLE OF ddshretval.
+
+  SELECT tdid, tdtext
+    INTO TABLE @DATA(lt_ttxit)
+  FROM ttxit
+  WHERE tdobject = @c_tdobject
+  AND tdspras    = @sy-langu
+  ORDER BY tdid.
+  IF sy-subrc = 0.
+
+
+    CALL FUNCTION 'F4IF_INT_TABLE_VALUE_REQUEST'
+      EXPORTING
+        retfield        = 'TDID'
+        dynpprog        = sy-repid
+        dynpnr          = sy-dynnr
+        dynprofield     = iv_field
+        value_org       = 'S'
+        multiple_choice = abap_true
+      TABLES
+        value_tab       = lt_ttxit
+        return_tab      = lt_return
+      EXCEPTIONS
+        OTHERS          = 3.
+
+    IF sy-subrc <> 0.
+      RETURN.
+    ENDIF.
+    IF lt_return IS NOT INITIAL.
+
+      LOOP AT lt_return INTO DATA(ls_ret).
+        APPEND VALUE #(
+          sign   = if_slad_select_options=>c_signs-including
+          option = if_slad_select_options=>c_options-eq
+          low    = ls_ret-fieldval ) TO s_tdid.
+      ENDLOOP.
+    ENDIF.
+  ENDIF.
+ENDFORM.
