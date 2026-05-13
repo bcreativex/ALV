@@ -1,0 +1,71 @@
+handle_top_of_page
+  FOR EVENT top_of_page OF cl_gui_alv_grid
+  IMPORTING e_dyndoc_id.
+
+
+
+METHOD handle_top_of_page.
+
+  DATA: lo_doc   TYPE REF TO cl_dd_document,
+        lv_text  TYPE string.
+
+  lo_doc = e_dyndoc_id.
+  lo_doc->initialize_document( ).
+
+  " Sales Org
+  IF s_vkorg[] IS NOT INITIAL.
+    lv_text = |Sales Org: { s_vkorg-low }|.
+    lo_doc->add_text( text = lv_text ).
+    lo_doc->new_line( ).
+  ENDIF.
+
+  " Account Group
+  IF p_ktokd IS NOT INITIAL.
+    lv_text = |Account Group: { p_ktokd }|.
+    lo_doc->add_text( text = lv_text ).
+    lo_doc->new_line( ).
+  ENDIF.
+
+  " Customer Classification
+  IF p_kukla IS NOT INITIAL.
+    lv_text = |Customer Classification: { p_kukla }|.
+    lo_doc->add_text( text = lv_text ).
+    lo_doc->new_line( ).
+  ENDIF.
+
+  " Search Term
+  IF p_sortl IS NOT INITIAL.
+    lv_text = |Search Term: { p_sortl }|.
+    lo_doc->add_text( text = lv_text ).
+    lo_doc->new_line( ).
+  ENDIF.
+
+  " Text ID
+  IF s_tdid[] IS NOT INITIAL.
+    lv_text = |Text ID: { s_tdid-low }|.
+    lo_doc->add_text( text = lv_text ).
+    lo_doc->new_line( ).
+  ENDIF.
+
+  lo_doc->display_document(
+    requery          = abap_false
+    parent           = cl_gui_container=>default_screen ).
+
+ENDMETHOD.
+
+
+
+SET HANDLER go_alv_obj->handle_top_of_page FOR go_grid.
+
+CALL METHOD go_grid->set_table_for_first_display
+  EXPORTING
+    is_layout                     = gs_layout
+    i_save                        = c_save_layout
+    i_except_qinfo                = abap_true    " ← enables top of page
+  CHANGING
+    it_outtab                     = gt_output
+    it_fieldcatalog               = go_alv_obj->gt_fcat
+  EXCEPTIONS
+    OTHERS                        = 4.
+
+
