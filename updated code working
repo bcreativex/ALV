@@ -1,0 +1,39 @@
+*&---------------------------------------------------------------------*
+*& Report  ZLSD_RPT10243_CM_EXT_REP
+*&---------------------------------------------------------------------*
+********************************************************************************
+* (c) Copyright St. Jude Medical Inc.                                          *
+********************************************************************************
+* Program Name : ZLSD_RPT10243_CM_TEXT
+* Author       : Krishna Jatav
+* Date Created : 05-May-2026
+* Frequency    : On-Demand
+* RICEF        : RPT10243
+* Transport    : DE1K9A0GPD
+********************************************************************************
+********************************************************************************
+* MODIFICATION LOG                                                             *
+********************************************************************************
+* Date         Developer         TR#          CHG/INC No.     Description      *
+********************************************************************************
+* 05May2026    Krishna Jatav   DE1K9A0GPD    CHGXXXXXXX     Initial Version    *
+********************************************************************************
+REPORT zlsd_rpt10243_cm_text.
+
+* Include for Global type definations, data declarations, class definations
+INCLUDE zlsd_rpt10243_top.
+* Include for Selection screen
+INCLUDE zlsd_rpt10243_sel.
+* Include for Class Implementations, Screen modules, downlaod form
+INCLUDE zlsd_rpt10243_f01.
+
+"----------------------------------------------------------------------
+" START-OF-SELECTION
+"----------------------------------------------------------------------
+
+START-OF-SELECTION.
+
+  " Instantiate main class
+  DATA(lo_main) = NEW lcl_main( ).
+  lo_main->run( ).  " fetches data into global output table
+  lo_main->display( ). " calls CALL SCREEN 100.
