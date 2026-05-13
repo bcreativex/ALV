@@ -1,0 +1,105 @@
+*&---------------------------------------------------------------------*
+*& Include ZLSD_RPT10243_TOP
+*&---------------------------------------------------------------------*
+********************************************************************************
+* (c) Copyright St. Jude Medical Inc.                                          *
+********************************************************************************
+* Program Name : ZLSD_RPT10243_CM_TEXT
+* Include      : ZLSD_RPT10243_TOP
+* Author       : Krishna Jatav
+* Date Created : 05-May-2026
+* Frequency    : On-Demand
+* RICEF        : RPT10243
+* Transport    : DE1K9A0GPD
+********************************************************************************
+********************************************************************************
+* MODIFICATION LOG                                                             *
+********************************************************************************
+* Date         Developer         TR#          CHG/INC No.     Description      *
+********************************************************************************
+* 05May2026    Krishna Jatav   DE1K9A0GPD    CHGXXXXXXX     Initial Version    *
+********************************************************************************
+TABLES: kna1, stxh, knvv.
+
+"----------------------------------------------------------------------
+" OUTPUT STRUCTURE — one row per TDLINE (FDS requirement)
+"----------------------------------------------------------------------
+TYPES: BEGIN OF ty_output,
+         kunnr  TYPE kna1-kunnr, " Customer Number
+         name1  TYPE kna1-name1, " Customer Name
+         tdid   TYPE stxh-tdid,  " Text Type ID
+         tdtext TYPE ttxit-tdtext, " Text ID description from TTXIT
+         spras  TYPE stxh-tdspras, " Language Key
+         tdline TYPE tline-tdline, " One row per line (132 chars fixed)
+       END OF ty_output.
+
+TYPES: tty_output TYPE STANDARD TABLE OF ty_output WITH DEFAULT KEY.
+
+"----------------------------------------------------------------------
+" Global Constants
+"----------------------------------------------------------------------
+CONSTANTS:
+
+  c_tdobject       TYPE stxh-tdobject VALUE 'KNA1',
+
+  c_tcode_xd02     TYPE syucomm VALUE 'XD02', " Customer change transaction
+  c_fcode_download TYPE syucomm VALUE 'DOWNLOAD', " Download button function code
+
+  c_prog_sapmf02d  TYPE bdcdata-program VALUE 'SAPMF02D', " XD02 program name
+  c_screen_0101    TYPE bdcdata-dynpro VALUE '0101', " XD02 initial screen
+  c_screen_0110    TYPE bdcdata-dynpro VALUE '0110', " XD02 general data screen
+  c_bdc_cursor     TYPE bdcdata-fnam VALUE 'BDC_CURSOR', " BDC cursor field
+  c_bdc_okcode     TYPE bdcdata-fnam VALUE 'BDC_OKCODE', " BDC ok-code field
+  c_rf02d_kunnr    TYPE bdcdata-fnam VALUE 'RF02D-KUNNR', " Customer number field
+  c_rf02d_d0110    TYPE bdcdata-fnam VALUE 'RF02D-D0110', " Address checkbox field
+  c_kna1_name1     TYPE bdcdata-fnam VALUE 'KNA1-NAME1', " Customer name field
+  c_okcode_enter   TYPE bdcdata-fval VALUE '/00', " Enter/confirm ok-code
+  c_okcode_text    TYPE bdcdata-fval VALUE '=TEXT', " Extras → Texts ok-code
+  c_dynbegin_x     TYPE bdcdata-dynbegin VALUE 'X', " BDC screen begin flag
+
+  c_filetype       TYPE char10 VALUE 'ASC', " ASCII file type
+
+  c_save_layout    TYPE char01 VALUE 'A', " Allow layout save
+  c_container      TYPE scrfname VALUE 'CONTAINER', " Screen container name
+
+  c_mode           TYPE char01 VALUE 'E',
+
+  c_fcode_back     TYPE syucomm VALUE 'BACK', " Back button
+  c_fcode_exit     TYPE syucomm VALUE 'EXIT', " Exit button
+  c_fcode_cancel   TYPE syucomm VALUE 'CANCEL', " Cancel button
+
+  c_pf_status      TYPE sypfkey VALUE 'ZALV_STATUS', " ALV screen PF status
+  c_titlebar       TYPE syrepid VALUE 'TITLE100', " Screen title bar
+
+  c_field_kunnr    TYPE lvc_fname VALUE 'KUNNR', " Customer number field
+  c_field_name1    TYPE lvc_fname VALUE 'NAME1', " Customer name field
+  c_field_tdid     TYPE lvc_fname VALUE 'TDID', " Text type field
+  c_field_tdtext   TYPE lvc_fname VALUE 'TDTEXT', " Text description field
+  c_field_spras    TYPE lvc_fname VALUE 'SPRAS', " Language field
+  c_field_tdline   TYPE lvc_fname VALUE 'TDLINE'. " Text line field
+
+
+
+
+"----------------------------------------------------------------------
+" GLOBAL DATA
+"----------------------------------------------------------------------
+DATA: gt_output TYPE tty_output.
+
+"----------------------------------------------------------------------
+" CLASS DEFINITIONS
+"----------------------------------------------------------------------
+
+CLASS lcl_main DEFINITION.
+  PUBLIC SECTION.
+    DATA: gt_fcat TYPE lvc_t_fcat.
+    METHODS: run.  " Main execution Method
+    METHODS:
+      build_fcat,    " Build ALV column definations
+      display,   " Triiger screen display 100
+      handle_hotspot_click   " NAVIGATE TO XD02 Text tab
+                  FOR EVENT hotspot_click OF cl_gui_alv_grid
+        IMPORTING e_row_id e_column_id,
+      download_data.  " Downlaod output to file
+
+ENDCLASS.
