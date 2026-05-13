@@ -1,71 +1,60 @@
-handle_top_of_page
-  FOR EVENT top_of_page OF cl_gui_alv_grid
-  IMPORTING e_dyndoc_id.
+METHOD build_header.
+
+    DATA: lv_value TYPE sdydo_text_element.
+
+    " Sales Org
+    e_dyndoc_id->add_text(
+      text         = text-h01    " e.g. 'Sales Org:'
+      sap_style    = cl_dd_area=>strong ).
+    CONCATENATE '  ' s_vkorg-low INTO lv_value.
+    e_dyndoc_id->add_text( text = lv_value ).
+    e_dyndoc_id->new_line( ).
+
+    " Account Group
+    e_dyndoc_id->add_text(
+      text         = text-h02    " e.g. 'Account Group:'
+      sap_style    = cl_dd_area=>strong ).
+    CONCATENATE '  ' p_ktokd INTO lv_value.
+    e_dyndoc_id->add_text( text = lv_value ).
+    e_dyndoc_id->new_line( ).
+
+    " Customer Class
+    e_dyndoc_id->add_text(
+      text         = text-h03    " e.g. 'Customer Class:'
+      sap_style    = cl_dd_area=>strong ).
+    CONCATENATE '  ' p_kukla INTO lv_value.
+    e_dyndoc_id->add_text( text = lv_value ).
+    e_dyndoc_id->new_line( ).
+
+    " Industry
+    e_dyndoc_id->add_text(
+      text         = text-h04    " e.g. 'Industry Sector:'
+      sap_style    = cl_dd_area=>strong ).
+    CONCATENATE '  ' p_brsch INTO lv_value.
+    e_dyndoc_id->add_text( text = lv_value ).
+    e_dyndoc_id->new_line( ).
+
+    e_dyndoc_id->display_document(
+      parent             = go_container
+      reuse_layout       = abap_true ).
+
+  ENDMETHOD.
+
+SET HANDLER go_alv_obj->build_header FOR go_grid.
+
+gs_layout-no_toolbar    = abap_true.
+    gs_layout-top_of_page   = abap_true.   " <-- ADD THIS
+
+" At the top of F01, with the other global refs:
+DATA: go_container TYPE REF TO cl_gui_custom_container,
+      go_grid      TYPE REF TO cl_gui_alv_grid,
+      go_alv_obj   TYPE REF TO lcl_main,          " <-- ADD
+      gs_layout    TYPE lvc_s_layo.
 
 
 
-METHOD handle_top_of_page.
+" OLD:
+DATA(go_alv_obj) = NEW lcl_main( ).
 
-  DATA: lo_doc   TYPE REF TO cl_dd_document,
-        lv_text  TYPE string.
-
-  lo_doc = e_dyndoc_id.
-  lo_doc->initialize_document( ).
-
-  " Sales Org
-  IF s_vkorg[] IS NOT INITIAL.
-    lv_text = |Sales Org: { s_vkorg-low }|.
-    lo_doc->add_text( text = lv_text ).
-    lo_doc->new_line( ).
-  ENDIF.
-
-  " Account Group
-  IF p_ktokd IS NOT INITIAL.
-    lv_text = |Account Group: { p_ktokd }|.
-    lo_doc->add_text( text = lv_text ).
-    lo_doc->new_line( ).
-  ENDIF.
-
-  " Customer Classification
-  IF p_kukla IS NOT INITIAL.
-    lv_text = |Customer Classification: { p_kukla }|.
-    lo_doc->add_text( text = lv_text ).
-    lo_doc->new_line( ).
-  ENDIF.
-
-  " Search Term
-  IF p_sortl IS NOT INITIAL.
-    lv_text = |Search Term: { p_sortl }|.
-    lo_doc->add_text( text = lv_text ).
-    lo_doc->new_line( ).
-  ENDIF.
-
-  " Text ID
-  IF s_tdid[] IS NOT INITIAL.
-    lv_text = |Text ID: { s_tdid-low }|.
-    lo_doc->add_text( text = lv_text ).
-    lo_doc->new_line( ).
-  ENDIF.
-
-  lo_doc->display_document(
-    requery          = abap_false
-    parent           = cl_gui_container=>default_screen ).
-
-ENDMETHOD.
-
-
-
-SET HANDLER go_alv_obj->handle_top_of_page FOR go_grid.
-
-CALL METHOD go_grid->set_table_for_first_display
-  EXPORTING
-    is_layout                     = gs_layout
-    i_save                        = c_save_layout
-    i_except_qinfo                = abap_true    " ← enables top of page
-  CHANGING
-    it_outtab                     = gt_output
-    it_fieldcatalog               = go_alv_obj->gt_fcat
-  EXCEPTIONS
-    OTHERS                        = 4.
-
-
+" NEW (just assignment, no DATA()):
+go_alv_obj = NEW lcl_main( ).
