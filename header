@@ -1,0 +1,95 @@
+MODULE status_0100 OUTPUT.
+  SET PF-STATUS c_pf_status.
+  SET TITLEBAR c_titlebar.
+
+  CLEAR gs_layout.
+  gs_layout-no_toolbar = abap_true.
+
+  IF go_container IS INITIAL.
+
+    CREATE OBJECT go_container
+      EXPORTING container_name = c_container.
+
+    " Splitter — top for header, bottom for ALV
+    CREATE OBJECT go_splitter
+      EXPORTING
+        parent        = go_container
+        sash_position = 20
+        with_border   = 0.
+
+    go_top_cont = go_splitter->top_left_container.
+    go_alv_cont = go_splitter->bottom_right_container.
+
+    " Create HTML document object
+    CREATE OBJECT go_header_doc
+      EXPORTING style = 'ALV_GRID'.
+
+    " ALV grid in bottom container
+    CREATE OBJECT go_grid
+      EXPORTING i_parent = go_alv_cont.
+
+    " Register TOP_OF_PAGE BEFORE display_document
+    CALL METHOD go_grid->list_processing_events
+      EXPORTING
+        i_event_name = 'TOP_OF_PAGE'
+        i_dyndoc_id  = go_header_doc.
+
+    " Build header content
+    DATA lv_val TYPE sdydo_text_element.
+
+    go_header_doc->add_text(
+      text      = 'Sales Org:'
+      sap_style = cl_dd_area=>strong ).
+    lv_val = s_vkorg-low.
+    go_header_doc->add_text( text = lv_val ).
+    go_header_doc->new_line( ).
+
+    go_header_doc->add_text(
+      text      = 'Account Group:'
+      sap_style = cl_dd_area=>strong ).
+    lv_val = p_ktokd.
+    go_header_doc->add_text( text = lv_val ).
+    go_header_doc->new_line( ).
+
+    go_header_doc->add_text(
+      text      = 'Customer Class:'
+      sap_style = cl_dd_area=>strong ).
+    lv_val = p_kukla.
+    go_header_doc->add_text( text = lv_val ).
+    go_header_doc->new_line( ).
+
+    go_header_doc->add_text(
+      text      = 'Industry:'
+      sap_style = cl_dd_area=>strong ).
+    lv_val = p_brsch.
+    go_header_doc->add_text( text = lv_val ).
+    go_header_doc->new_line( ).
+
+    " Display document in top container
+    go_header_doc->display_document(
+      parent = go_top_cont ).
+
+    go_alv_obj = NEW lcl_main( ).
+    go_alv_obj->build_fcat( ).
+
+    SET HANDLER go_alv_obj->handle_hotspot_click FOR go_grid.
+
+    CALL METHOD go_grid->set_table_for_first_display
+      EXPORTING
+        is_layout       = gs_layout
+        i_save          = c_save_layout
+      CHANGING
+        it_outtab       = gt_output
+        it_fieldcatalog = go_alv_obj->gt_fcat
+      EXCEPTIONS
+        OTHERS          = 4.
+
+    IF sy-subrc <> 0.
+      MESSAGE s243(zprd) DISPLAY LIKE c_mode.
+    ENDIF.
+
+    CALL METHOD go_grid->set_toolbar_interactive.
+
+  ENDIF.
+
+ENDMODULE.
