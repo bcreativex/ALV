@@ -1,0 +1,160 @@
+CORE – ITEM CATEGORY CHANGE FOR CONSIGNMENT ITEM ON ZQP ORDER 
+
+PROJECT HEADING
+
+Functional Specification ID: EDD13337
+Associated Spec(s):   
+Implementation Phase:  Core Release
+
+REVISION NUMBER	REVISION DATE	POWERSTEERING OR CRQ NUMBER	REVISION DESCRIPTION	AUTHOR
+A	04-16-2026	CHG0448743	Initial Draft	Abhinav Tiwari
+				
+				
+				
+				
+				
+
+
+
+DOCUMENT APPROVALS
+Approver Name	Approver Sign-Off	Date of Sign-Off
+Sharad Avhad		
+		
+		
+ 
+TABLE OF CONTENTS
+
+1.	Overview	3
+1.1.	Description of enhancement	3
+2.	Functionality requirement	4
+2.1.	Flow diagram	4
+2.2.	Required functionality	5
+3.	Abbott data	5
+4.	Integration	5
+5.	Error handling	5
+6.	Security	6
+6.1.	User roles	6
+6.2.	Level of security	6
+7.	Test Plan	6
+8.	Notes and Additional Information	7
+
+ 
+1.	Overview
+
+Enhancement Title	Item Category change for Consignment Item on ZQP order
+System(s)	ECC
+Functional Area	Sales and Distribution
+Execution	1 Online     
+1 Background
+
+Frequency	1 On Demand     
+0 Scheduled
+
+Is enhancement tied to configuration? (Yes / No )	YES
+Performance expectations	No Noticeable impact .
+Target user group	
+Intended volume of data	1000+ per month
+Associated Requirements	
+Requirement Risk Classification	0 1 - Quality Critical (QC)
+1 2 - Quality Non-Critical (QNC)
+0 3 - Regulated Non-Quality
+0 4 - Highly Restricted (NQHR) / Restricted (NQR) 
+0 5 - Non-Regulated     
+
+
+1.1.	Description of enhancement
+What is the business scenario?  Describe what the enhancement will do, why is it needed, who the intended users are, and the overall goal.
+
+Item category ZQPC is defaulted to every ZQP system component. Item category ZQPC is only valid for components being issued from normal inventory stock. The user can manually change the item category before saving.
+This enhancement will automate item category determination update in ECC order for a line item with Item category ZQPC and Plant 1018 to ZKQP prior to order save. This change supports the new QP Systems sales BOM process, ensuring consigned components are correctly identified, availability checks are bypassed, and consignment handling is applied automatically. 
+The Enhancement will be applicable for Plants and Item Categories maintained in ZUPRGMVAR Table.
+2.	Functionality requirement
+2.1.	Flow diagram
+Please provide a flow diagram of the process with the required functionality.
+
+NA
+2.2.	Required functionality 
+Explain the process with the required functionality.  Provide details about any documents to be queried and the relationship between them.  If known, list database tables and fields.  Provide any required validations, formulas, calculations and conversions (unit of measure or other).
+
+The solution must enable automatic, configuration driven item category determination in ECC without manual user intervention. The system shall use centrally maintained variables in ZUPRGMVAR to control plant eligibility and source to target item category mappings, allowing business flexibility without code changes. The functionality must support both non EMEA and EMEA processes, including additional validation of Special Stock Partner for EMEA consignment scenarios. 
+
+The change must occur during the PREPARE phase of ECC order processing and apply consistently across ZQP Order type where item categories are relevant. This ensures correct consignment handling, prevents availability checks for consigned items, and supports the new multi plant, multi delivery QP Systems sales BOM process.
+
+1.	Check if the item plant is a non-EMEA plant by checking against the plants maintained in variable EDD13337_ZQP_PLANTS. 
+-	If found maintained, check if the target item category is maintained in HIGH value of variable EDD13337_ZQP_ITEMCAT_CHANGE using LOW = source item category of the item being processed. 
+-	If found, set the item category to the target item category for that item using suitable USER EXIT/BADI 
+-	If not found, continue onto the next item.
+2.	If the item plant is not found in the variable EDD13337_ZQP_PLANTS, check the plant against the plants maintained in variable EDD13337_ZQP_PLANTS_EMEA. 
+-	If not found, continue onto the next item. 
+-	If found, check if a Special Stock Partner is maintained for the item (partner function = SB). 
+-	If SSP is not maintained, continue onto the next item. 
+-	If maintained, get the target item category from ZUPRGMVAR variable EDD13337_ZQP_ITEMCAT_CHANGE_EMEA like that in step 1. 
+-	If a target item category is not maintained, continue onto the next item. 
+-	If maintained, set the item category to the target item category for that item using T184 table for Item category determination.
+Note - 
+a)	Obtain the source item categories, destination item categories and plants maintained in the ZUPRGMVAR table 
+Variable	LOW	HIGH
+EDD13337_ZQP_ITEMCAT_CHANGE	Item category to fetch from order	Item category to be updated in order
+EDD13337_ZQP_PLANTS	1018 (Non EMEA Plant Entries)	
+EDD13337_ZQP_ITEMCAT_CHG_EMEA	Item category to fetch from order (EMEA Entry)	Item category to be updated in order (EMEA Entry)
+EDD13337_ZQP_PLANTS_EMEA	EMEA Plant to check for EMEA Variant	
+
+ 
+
+Obtain the ECC Plant numbers VBAP - WERKS
+b)	Proceed only if the above data is maintained in the ZUPRGMVAR table.
+c)	Using suitable User exit/BADI obtain the items, Plant and the partners for the order.
+
+3.	Abbott data
+Are we storing new data not part of standard system functionality?  What’s the plan for storing it?  For example, custom tables, unused standard system fields or extend standard system tables?  Keep in mind data volume, retention period, potential data loads or ongoing data maintenance requirements.
+
+N/A
+
+4.	Integration
+Please define any integration.  Is this enhancement stand alone or does it need to modifying standard system behavior?  Are there dependencies with existing reports, functionality or interfaces?  Is data stored across multiple systems? 
+
+This enhancement is integrated with Plant Determination configuration at Sales order level.
+
+5.	Error handling
+Describe expectations for backing out and/or reprocessing of errors.  Describe the preferred medium for notification of errors.  For example: email, alerts, workflow or error message displayed in the SAP GUI.  Provided notification of errors only or successes too?.  Also, provide the exact error or success messages the enhancement should use.
+NA
+
+6.	Security
+6.1.	User roles
+
+N/A
+Functional Area	Business Function	Usage for the role
+		 
+		 
+
+6.2.	Level of security
+
+Provide details as to what needs to be checked as given below:
+
+Organizational unit (e.g. plant, company code, controlling area, etc.)
+Document type/category (e.g. sales order type) 
+Any other document classification values (e.g. infotype, movement type, etc.). 
+
+Any enhancement to an existing standard SAP delivered transaction or program will not be reviewed by the security team under the assumption that the default authority checks that have been included in the SAP standard transaction or program are retained.
+
+If the enhancement to an existing SAP delivered transaction or program includes adding additional checks to custom tables or programs, the Development team is expected to follow the same standards described in guideline numbers (1) and (2) above and include the appropriate additional checks on S_PROGRAM and/or S_TABU_DIS/S_TABU_NAM.
+
+N/A
+7.	Test Plan
+What are the important considerations when testing the enhancement?  For example: effect on dependent processes (e.g. reporting, interfaces), data volume, performance, etc.. What are the common test cases?  Which ones are the outlier?  Which are the negative test cases?
+
+
+Sr. no.	Test Scenario	Expected Result
+1	Create ZQP sales order with non EMEA plant and source item category ZQPC / ZANO / ZNNO	Item category is automatically updated to ZKQP / ZKQ1 / ZKQF respectively on order save
+2	Create ZQP sales order with EMEA plant, Special Stock Partner (SB) maintained, and source item category ZQPC / ZANO / ZNNO	Item category is automatically updated to ZKQP / ZKQ1 / ZKQF respectively on order save
+3	Create ZQP sales order with EMEA plant, Special Stock Partner (SB) maintained, and source item category ZQPN	Item category is automatically updated to ZKQN on order save
+4	Create ZQP sales order with EMEA plant but Special Stock Partner not maintained	Item category remains unchanged and sales order is saved successfully
+5	Create ZQP sales order with non EMEA or EMEA plant and source item category not maintained in ZUPRGMVAR	Item category remains unchanged and sales order is saved successfully
+6	Create ZQP sales order with multiple items covering eligible non EMEA, eligible EMEA, and non eligible plant scenarios	Item categories update only for eligible items as per mapping; other items remain unchanged on order save
+
+8.	Notes and Additional Information
+
+Reference objects – EDD11007. EDD0573
+
+
+
