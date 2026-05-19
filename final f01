@@ -1,0 +1,433 @@
+*&---------------------------------------------------------------------*
+*& Include ZLSD_RPT10243_F01
+*&---------------------------------------------------------------------*
+********************************************************************************
+* (c) Copyright St. Jude Medical Inc.                                          *
+********************************************************************************
+* Program Name : ZLSD_RPT10243_CM_TEXT
+* Include      : ZLSD_RPT10243_F01
+* Author       : Krishna Jatav
+* Date Created : 05-May-2026
+* Frequency    : On-Demand
+* RICEF        : RPT10243
+* Transport    : DE1K9A0GPD
+********************************************************************************
+********************************************************************************
+* MODIFICATION LOG                                                             *
+********************************************************************************
+* Date         Developer         TR#          CHG/INC No.     Description      *
+********************************************************************************
+* 05May2026    Krishna Jatav   DE1K9A0GPD    CHGXXXXXXX     Initial Version    *
+********************************************************************************
+     "----------------------------------------------------------------------
+     " GLOBAL screen objects — declared here, NOT inside lcl_alv
+     " (screen modules are not class methods; they need global refs)
+     "----------------------------------------------------------------------
+
+*" Data Declarations
+     DATA  go_alv_obj    TYPE REF TO lcl_main.
+
+*=====================================================================*
+* lcl_main IMPLEMENTATION
+*=====================================================================*
+     CLASS lcl_main IMPLEMENTATION.
+
+       METHOD run.
+
+         TYPES: BEGIN OF ty_raw,
+                  kunnr   TYPE kna1-kunnr,
+                  name1   TYPE kna1-name1,
+                  vkorg   TYPE knvv-vkorg,
+                  tdid    TYPE stxh-tdid,
+                  tdspras TYPE stxh-tdspras,
+                  tdname  TYPE stxh-tdname,
+                  tdtext  TYPE ttxit-tdtext,
+                END OF ty_raw.
+
+         DATA: lt_raw   TYPE STANDARD TABLE OF ty_raw,
+               lt_lines TYPE STANDARD TABLE OF tline.
+
+         " Build range tables from PARAMETER values
+         DATA: lr_ktokd TYPE RANGE OF kna1-ktokd,
+               lr_sortl TYPE RANGE OF kna1-sortl,
+               lr_kukla TYPE RANGE OF kna1-kukla,
+               lr_brsch TYPE RANGE OF kna1-brsch.
+
+         IF p_ktokd IS NOT INITIAL.
+           APPEND VALUE #(
+             sign   = if_slad_select_options=>c_signs-including
+             option = if_slad_select_options=>c_options-eq
+             low    = p_ktokd ) TO lr_ktokd.
+         ENDIF.
+
+         IF p_kukla IS NOT INITIAL.
+           APPEND VALUE #(
+             sign   = if_slad_select_options=>c_signs-including
+             option = if_slad_select_options=>c_options-eq
+             low    = p_kukla ) TO lr_kukla.
+         ENDIF.
+
+         IF p_sortl IS NOT INITIAL.
+           APPEND VALUE #(
+             sign   = if_slad_select_options=>c_signs-including
+             option = if_slad_select_options=>c_options-eq
+             low    = p_sortl ) TO lr_sortl.
+         ENDIF.
+
+         IF p_brsch IS NOT INITIAL.
+           APPEND VALUE #(
+             sign   = if_slad_select_options=>c_signs-including
+             option = if_slad_select_options=>c_options-eq
+             low    = p_brsch ) TO lr_brsch.
+         ENDIF.
+
+         "--------------------------------------------------------------------
+         " Direct JOIN on STXH — avoids FOR ALL ENTRIES type mismatch
+         "--------------------------------------------------------------------
+         SELECT DISTINCT a~kunnr,
+                a~name1,
+                b~vkorg,
+                c~tdid,
+                c~tdspras,
+                c~tdname,
+                d~tdtext
+         INTO CORRESPONDING FIELDS OF TABLE @lt_raw
+         FROM kna1 AS a
+         INNER JOIN knvv AS b ON b~kunnr = a~kunnr
+
+         INNER JOIN stxh AS c ON c~tdobject = @c_tdobject
+                             AND c~tdname = a~kunnr
+         INNER JOIN ttxit AS d ON d~tdobject = @c_tdobject
+                               AND d~tdid     = c~tdid
+         WHERE a~kunnr IN @s_kunnr
+          AND a~ktokd IN @lr_ktokd
+           AND a~kukla IN @lr_kukla
+           AND a~sortl IN @lr_sortl
+           AND a~brsch IN @lr_brsch
+           AND b~vkorg IN @s_vkorg
+           AND ( c~tdid IN @s_tdid AND c~tdid LIKE @c_tdid_z ).
+
+         IF sy-subrc  = 0 AND lt_raw IS NOT INITIAL.
+
+           SORT lt_raw BY kunnr tdid ASCENDING.
+
+           LOOP AT lt_raw ASSIGNING FIELD-SYMBOL(<lfs_raw>).
+
+             CALL FUNCTION 'READ_TEXT'
+               EXPORTING
+                 id       = <lfs_raw>-tdid
+                 language = <lfs_raw>-tdspras
+                 name     = <lfs_raw>-tdname
+                 object   = c_tdobject
+               TABLES
+                 lines    = lt_lines
+               EXCEPTIONS
+                 OTHERS   = 8.
+
+             IF sy-subrc = 0 AND lt_lines IS NOT INITIAL.
+
+               " First line — full customer info + first text line
+               APPEND VALUE #(
+                 kunnr  = <lfs_raw>-kunnr
+                 name1  = <lfs_raw>-name1
+                 tdid   = <lfs_raw>-tdid
+                 tdtext = <lfs_raw>-tdtext  "lv_tdtext
+                 spras  = <lfs_raw>-tdspras
+                 tdline = lt_lines[ 1 ]-tdline ) TO gt_output.
+
+               " Remaining lines — only tdline, customer info stays blank
+               APPEND LINES OF VALUE tty_output(
+                 FOR la_line1 IN lt_lines FROM 2
+                 WHERE ( tdline IS NOT INITIAL )
+                 ( tdline = la_line1-tdline ) ) TO gt_output.
+               CLEAR:lt_lines.
+
+             ENDIF.
+           ENDLOOP.
+         ELSE.
+           MESSAGE e038(zprd).
+           RETURN.
+         ENDIF.
+       ENDMETHOD.
+
+       METHOD build_fcat.
+         CLEAR gt_fcat.
+
+         " KUNNR — hotspot column
+         APPEND VALUE #(
+           fieldname = c_field_kunnr
+           coltext   = text-004
+           outputlen = 10
+           hotspot   = abap_true
+           key       = abap_true ) TO gt_fcat.
+
+         " NAME1
+         APPEND VALUE #(
+           fieldname = c_field_name1
+           coltext   = text-005
+           outputlen = 35 ) TO gt_fcat.
+
+         " TDID — Text Type
+         APPEND VALUE #(
+           fieldname = c_field_tdid
+           coltext   = text-006
+           outputlen = 8 ) TO gt_fcat.
+
+         " TDTEXT — Text Description from TTXIT
+         APPEND VALUE #(
+           fieldname = c_field_tdtext
+           coltext   = text-007
+           outputlen = 30 ) TO gt_fcat.
+
+         " SPRAS — Language
+         APPEND VALUE #(
+           fieldname = c_field_spras
+           coltext   = text-008
+           outputlen = 5 ) TO gt_fcat.
+
+         " TDLINE — Actual text content
+         APPEND VALUE #(
+           fieldname = c_field_tdline
+           coltext   = text-009
+           outputlen = 80 ) TO gt_fcat.
+
+       ENDMETHOD.
+
+       METHOD display.
+         " Custom container for ALV Grid
+         CALL SCREEN 100.
+       ENDMETHOD.
+
+       METHOD handle_hotspot_click.
+         DATA lt_bdc TYPE TABLE OF bdcdata.
+
+         IF e_column_id-fieldname = c_field_kunnr.
+
+           DATA(l_kunnr) = VALUE #( gt_output[ e_row_id-index ]-kunnr OPTIONAL ).
+
+           IF l_kunnr IS NOT INITIAL.
+
+             " Screen 0101 — XD02 initial screen
+             APPEND VALUE #(
+               program  = c_prog_sapmf02d
+               dynpro   = c_screen_0101
+               dynbegin = c_dynbegin_x ) TO lt_bdc.
+
+             APPEND VALUE #(
+               fnam = c_bdc_cursor
+               fval = c_rf02d_kunnr ) TO lt_bdc.
+
+             APPEND VALUE #(
+               fnam = c_rf02d_kunnr
+               fval = l_kunnr ) TO lt_bdc.
+
+             APPEND VALUE #(
+               fnam = c_rf02d_d0110
+               fval = c_dynbegin_x ) TO lt_bdc.
+
+             APPEND VALUE #(
+               fnam = c_bdc_okcode
+               fval = c_okcode_enter ) TO lt_bdc.
+
+             " Screen 0110 — General Data, navigate to Texts
+             APPEND VALUE #(
+               program  = c_prog_sapmf02d
+               dynpro   = c_screen_0110
+               dynbegin = c_dynbegin_x ) TO lt_bdc.
+
+             APPEND VALUE #(
+               fnam = c_bdc_cursor
+               fval = c_kna1_name1 ) TO lt_bdc.
+
+             APPEND VALUE #(
+               fnam = c_bdc_okcode
+               fval = c_okcode_text ) TO lt_bdc.
+
+             CALL TRANSACTION c_tcode_xd02
+               USING lt_bdc
+               MODE   c_mode
+              UPDATE if_xo_const_message=>success .
+
+             CALL METHOD go_grid->refresh_table_display.
+           ENDIF.
+
+         ENDIF.
+
+       ENDMETHOD.
+
+       METHOD download_data.
+
+         " Header structure for Excel column titles
+         TYPES: BEGIN OF ty_head,
+                  field1(50) TYPE c,
+                END OF ty_head.
+
+         DATA: lt_head TYPE TABLE OF ty_head,
+               l_file TYPE string.
+
+         " Build column headers using APPEND VALUE #() — new syntax
+         APPEND VALUE #( field1 = text-004 ) TO lt_head.  " Customer
+         APPEND VALUE #( field1 = text-005 ) TO lt_head.  " Customer Name
+         APPEND VALUE #( field1 = text-006 ) TO lt_head.  " Text Type
+         APPEND VALUE #( field1 = text-007 ) TO lt_head.  " Description
+         APPEND VALUE #( field1 = text-008 ) TO lt_head.  " Lang
+         APPEND VALUE #( field1 = text-009 ) TO lt_head.  " Text Line
+
+         DATA(l_default) = | { text-011 && sy-datum+4(4) && text-012 } |.
+
+         " Let user choose save location
+         CALL FUNCTION 'GUI_FILE_SAVE_DIALOG'
+           EXPORTING
+             window_title      = text-010
+             default_file_name = l_default
+           IMPORTING
+             filename          = l_file
+           EXCEPTIONS
+             OTHERS            = 1.
+         IF sy-subrc <> 0.
+           RETURN.
+         ENDIF.
+
+         IF l_file IS NOT INITIAL.
+           CALL FUNCTION 'GUI_DOWNLOAD'
+             EXPORTING
+               filename              = l_file
+               filetype              = c_filetype
+               write_field_separator = abap_true
+             TABLES
+               data_tab              = gt_output
+               fieldnames            = lt_head
+             EXCEPTIONS
+               OTHERS                = 1.
+
+           IF sy-subrc = 0.
+             MESSAGE s039(zprd).
+           ELSE.
+             MESSAGE s235(zprd) DISPLAY LIKE c_mode.
+           ENDIF.
+         ENDIF.
+
+       ENDMETHOD.
+     ENDCLASS.
+
+*=====================================================================*
+* SCREEN 100 MODULES
+*=====================================================================*
+
+     MODULE status_0100 OUTPUT.
+       SET PF-STATUS c_pf_status.
+       SET TITLEBAR c_titlebar.
+
+       CLEAR gs_layout.
+       gs_layout-no_toolbar = abap_true. " hides alv grid internal toolbar
+
+       IF go_container IS INITIAL.
+
+         CREATE OBJECT go_container
+           EXPORTING
+             container_name = c_container.
+
+         " Splitter — top for header, bottom for ALV
+         CREATE OBJECT go_splitter
+           EXPORTING
+             parent        = go_container
+             sash_position = 15
+             with_border   = 0.
+
+         go_top_cont = go_splitter->top_left_container.
+         go_alv_cont = go_splitter->bottom_right_container.
+
+         " Create HTML document object
+         CREATE OBJECT go_header_doc
+           EXPORTING
+             style = 'ALV_GRID'.
+
+         " ALV grid in bottom container
+         CREATE OBJECT go_grid
+           EXPORTING
+             i_parent = go_alv_cont.
+
+         " Register TOP_OF_PAGE BEFORE display_document
+         CALL METHOD go_grid->list_processing_events
+           EXPORTING
+             i_event_name = c_top_of_page
+             i_dyndoc_id  = go_header_doc.
+
+         go_header_doc->add_text(
+           text      = text-h01
+           sap_emphasis = cl_dd_area=>strong ).
+         go_header_doc->add_gap( width = 50 ).
+         g_val = s_vkorg-low.
+         go_header_doc->add_text( text = g_val ).
+         go_header_doc->new_line( ).
+
+         go_header_doc->add_text(
+           text      = text-h02
+           sap_emphasis = cl_dd_area=>strong ).
+         go_header_doc->add_gap( width = 20 ).
+         g_val = p_ktokd.
+         go_header_doc->add_text( text = g_val ).
+         go_header_doc->new_line( ).
+
+         go_header_doc->add_text(
+           text      = text-h03
+           sap_emphasis = cl_dd_area=>strong ).
+         go_header_doc->add_gap( width = 15 ).
+         g_val = p_kukla.
+         go_header_doc->add_text( text = g_val ).
+         go_header_doc->new_line( ).
+
+         go_header_doc->add_text(
+           text      = text-h04
+           sap_emphasis = cl_dd_area=>strong ).
+         go_header_doc->add_gap( width = 55 ).
+         g_val = p_brsch.
+         go_header_doc->add_text( text = g_val ).
+         go_header_doc->new_line( ).
+
+         go_header_doc->add_text(
+           text      = text-h05
+           sap_emphasis = cl_dd_area=>strong ).
+         go_header_doc->add_gap( width = 50 ).
+         g_val = s_tdid-low.
+         go_header_doc->add_text( text = g_val ).
+         go_header_doc->new_line( ).
+
+         " Display document in top container
+         go_header_doc->display_document(
+           parent = go_top_cont ).
+
+         " Store ALV object globally so handler stays alive after module exits
+         go_alv_obj = NEW lcl_main( ).
+         go_alv_obj->build_fcat( ).
+
+         " Register hotspot handler on the global object
+         SET HANDLER go_alv_obj->handle_hotspot_click FOR go_grid.
+
+         CALL METHOD go_grid->set_table_for_first_display
+           EXPORTING
+             is_layout       = gs_layout
+             i_save          = c_save_layout
+           CHANGING
+             it_outtab       = gt_output
+             it_fieldcatalog = go_alv_obj->gt_fcat
+           EXCEPTIONS
+             OTHERS          = 4.
+
+         IF sy-subrc <> 0.
+           MESSAGE s243(zprd) DISPLAY LIKE c_mode.
+         ENDIF.
+         CALL METHOD go_grid->set_toolbar_interactive.
+
+       ENDIF.
+
+     ENDMODULE.
+
+     MODULE user_command_0100 INPUT.
+       CASE sy-ucomm.
+         WHEN c_fcode_download.
+           go_alv_obj->download_data( ).
+         WHEN c_fcode_back OR c_fcode_exit OR c_fcode_cancel.
+           LEAVE PROGRAM.
+       ENDCASE.
+     ENDMODULE.
