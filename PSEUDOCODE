@@ -1,44 +1,53 @@
-
 Program - ZLSD_RPT10243_CUST_MASTER_TEXT
 Includes: ZLSD_RPT10243_TOP
-               ZLSD_RPT10243_SEL
-               ZLSD_RPT10243_F01
-The program displays and exports customer master text data. It reads customer texts from SAP (KNA1 / STXH / TLINE), displays them in an ALV grid with one output row per text line, and allows the user to download the results or navigate directly to XD02 to view or edit a customer's texts.
+ZLSD_RPT10243_SEL
+ZLSD_RPT10243_F01
+The program displays and exports customer master text data. It reads customer texts from SAP (KNA1 / KNVV / STXH / TTXIT / TLINE), displays them in an ALV grid with one output row per text line, and allows the user to download the results or navigate directly to XD02 to view or edit a customer's texts.
+
 Includes
 ZLSD_RPT10243_TOP – This include contains global type definitions, data declarations, constants, and class definitions.
-•	Defines output structure ty_output with fields KUNNR, NAME1, TDID, TDTEXT, SPRAS, TDLINE — one row per text line as per FDS requirement.
-•	Declares global output table gy_output and work area gs_output used across all includes.
-•	Defines all constants: object/table names, BDC field names and ok-codes for XD02 navigation, file type and naming defaults, ALV container name and field names.
-•	Declares class lcl_alv with methods: build_fcat, handle_hotspot_click, handle_toolbar, handle_user_command.
-•	Declares class lcl_main with method: run.
 
-ZLSD_RPT10243_SEL – This include contains the selection screen definition. All fields are currently commented out and reserved for future use. Planned fields: S_KUNNR (Customer Number), P_VKORG (Sales Org, mandatory), S_TDID (Text ID, mandatory).
+Defines output structure ty_output with fields KUNNR, NAME1, TDID, TDTEXT, SPRAS, TDLINE — one row per text line as per FDS requirement.
+Declares global output table gt_output used across all includes.
+Defines all constants: object/table names, BDC field names and ok-codes for XD02 navigation, file type and naming defaults, ALV container name MAIN_CONTAINER and field names, gap widths for header display, Z text type filter constant Z%, top-of-page event name.
+Declares class lcl_main with methods: run, build_fcat, display, handle_hotspot_click, download_data.
 
-ZLSD_RPT10243_F01 – This include contains all class implementations (lcl_main and lcl_alv), screen 100 modules, the DOWNLOAD_DATA form, and global screen object declarations (go_container, go_grid, go_alv_obj, gs_layout).
+ZLSD_RPT10243_SEL – This include contains the selection screen definition, field validations, and F4 help.
+
+Block 1 (Partners): S_KUNNR — Customer Number (optional).
+Block 2 (Other Criteria): P_KTOKD — Account Group, S_VKORG — Sales Organization (obligatory, no intervals), P_KUKLA — Customer Classification, P_SORTL — Search Term, P_BRSCH — Industry Sector.
+Block 3 (Texts): S_TDID — Text Type (obligatory).
+Validates S_VKORG against TVKO, S_KUNNR against KNA1, P_KTOKD against T077D, S_TDID against TTXIT for object KNA1. Wildcard * bypasses Text ID validation.
+F4 help for S_TDID fetches only Z text types from TTXIT for object KNA1 in current login language.
+
+ZLSD_RPT10243_F01 – This include contains all class implementations (lcl_main), screen 100 modules, and global screen object declarations (go_container, go_splitter, go_top_cont, go_alv_cont, go_header_doc, go_grid, go_alv_obj, gs_layout).
+
 START-OF-SELECTION
-Instantiates lcl_main and calls its run( ) method to fetch and populate the global output table. Then calls CALL SCREEN 100 to render the ALV grid.
+Instantiates lcl_main and calls its run() method to fetch and populate the global output table. Then calls display() which triggers CALL SCREEN 100 to render the ALV grid.
+
 Class: lcl_main
 Methods:
-•	RUN – Main execution method. Fetches customer text data and populates gy_output.
--	Joins KNA1, KNVV, and STXH to get all customer text headers for Sales Org 1000, filtered by current logon language.
--	Fetches text ID descriptions from TTXIT for each TDID found.
--	Calls FM READ_TEXT for each customer and text type to retrieve actual text lines from TLINE.
--	Builds one output row per non-empty TDLINE. Customer and header fields (KUNNR, NAME1, TDID, TDTEXT) are populated only on the first line of each text block.
--	Returns without output and issues an info message if no data is found.
-Class: lcl_alv
-Methods:
-•	BUILD_FCAT – Builds the ALV field catalog. Defines six output columns: KUNNR (hotspot-enabled and key-frozen), NAME1, TDID, TDTEXT, SPRAS, and TDLINE. Column labels come from text symbols; output lengths are fixed per column.
-•	HANDLE_HOTSPOT_CLICK – Fires when the user clicks a KUNNR cell. Reads the customer number from the clicked row and launches transaction XD02 via BDC, navigating automatically to the Texts screen (Extras > Texts) for that customer.
-•	HANDLE_TOOLBAR – Adds a custom Download button to the ALV toolbar using function code DOWNLOAD.
-•	HANDLE_USER_COMMAND – Handles the Download button click event and calls form DOWNLOAD_DATA.
+
+RUN – Main execution method. Fetches customer text data and populates gt_output.
+
+Converts single PARAMETERs (p_ktokd, p_kukla, p_sortl, p_brsch) to range tables for SELECT filter.
+Joins KNA1, KNVV, STXH and TTXIT to get all customer text headers matching selection screen criteria. Restricts to Z text types only.
+Calls FM READ_TEXT for each customer and text type to retrieve actual text lines from TLINE.
+Builds one output row per non-empty TDLINE. Customer and header fields (KUNNR, NAME1, TDID, TDTEXT) are populated only on the first line of each text block.
+Returns without output and shows information popup if no data is found.
+
+
+BUILD_FCAT – Builds the ALV field catalog. Defines six output columns: KUNNR (hotspot-enabled and key), NAME1, TDID, TDTEXT, SPRAS, and TDLINE. Column labels come from text symbols; output lengths are fixed per column.
+DISPLAY – Calls CALL SCREEN 100 to render the ALV output screen.
+HANDLE_HOTSPOT_CLICK – Fires when the user clicks a KUNNR cell. Reads the customer number from the clicked row and launches transaction XD02 via BDC, navigating automatically to the Texts screen (Extras → Texts) for that customer.
+DOWNLOAD_DATA – Opens a Save File dialog (GUI_FILE_SAVE_DIALOG) with a default filename built from text symbols and current year. If the user confirms a path, calls GUI_DOWNLOAD to write gt_output as an ASCII tab-separated file with column headers. Displays a success or error message based on the return code.
+
+
 Screen 100 Modules
-•	STATUS_0100 (OUTPUT) – Sets PF-status and title bar. On first call: creates the custom container and ALV grid object, registers event handlers for hotspot, toolbar, and user command, displays gy_output via set_table_for_first_display, and activates the interactive toolbar.
-•	USER_COMMAND_0100 (INPUT) – Handles BACK, EXIT, and CANCEL function codes by leaving to screen 0.
-Form: DOWNLOAD_DATA
-Opens a Save File dialog (GUI_FILE_SAVE_DIALOG) with a default filename built from the prefix 'customer_texts_' plus the current date plus '.txt'. If the user confirms a path, calls GUI_DOWNLOAD to write gy_output as an ASCII tab-separated file. Displays a success or error message based on the return code.
+
+STATUS_0100 (OUTPUT) – Sets PF-status and title bar. On first call: creates main custom container linked to screen control MAIN_CONTAINER. Creates easy splitter container (15% top / 85% bottom). Creates cl_dd_document in top container displaying selection criteria (Sales Org, Account Group, Customer Class, Industry, Text Type) as header. Creates ALV grid in bottom container, registers hotspot event handler, displays gt_output via set_table_for_first_display, and activates the interactive toolbar.
+USER_COMMAND_0100 (INPUT) – Handles DOWNLOAD function code by calling go_alv_obj->download_data(). Handles BACK, EXIT, and CANCEL function codes by leaving program.
+
 
 Messages
-Type (I, E, W, A)	No.	Message
-I	038	No Customer Text Found for Selected Criteria
-I	039	Download completed successfully.
-E	235	Download failed.
+TypeNo.MessageI038No Customer Text Found for Selected CriteriaS039Download completed successfullyS235Download failedE251Sales Organization & does not existE254Customer Number & does not existE256Account Group & does not existE257Text ID & is not valid for Customer TextsS243Error displaying ALV grid
