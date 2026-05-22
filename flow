@@ -1,0 +1,18 @@
+START
+Enter / change ZQP sales order
+Triggers USEREXIT_MOVE_FIELD_TO_VBAP
+Fetch config from ZUPRGMVAR
+Exit if no entries found or order type mismatch
+Build plant range table
+Exit if plant range is empty
+Loop eligible order items
+Plant in range, skip deleted items (UPDKZ = D)
+Check SUB_NAME and SB partner
+EMEA: SB partner required at item level
+Read target item category
+Look up HIGH value in LT_CONFIG using source PSTYV
+Update item category
+Set PSTYV to target. Set UPDKZ = U.
+Clear variables and end loop
+Clear all local variables and config tables
+STOP
