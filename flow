@@ -1,22 +1,18 @@
 START
 Enter / change ZQP sales order
-User exit USEREXIT_MOVE_FIELD_TO_VBAP is triggered
+Triggers USEREXIT_MOVE_FIELD_TO_VBAP
 Fetch config from ZUPRGMVAR
-Read item cat mappings and plant entries into LT_CONFIG. Exit if empty.
-Validate order type
-Check VBAK-AUART matches config name. Exit if no match.
+Exit if no entries found or order type mismatch
 Build plant range table
-Populate LR_PLANT from plant entries in LT_CONFIG. Exit if empty.
-Loop through sales order items
-Filter: plant in LR_PLANT and UPDKZ not equal to D (deleted).
-Check SUB_NAME for plant
-If EMEA, check for SB partner at item level. If non-EMEA, proceed directly.
+Exit if plant range is empty
+Loop eligible order items
+Plant in range, skip deleted items (UPDKZ = D)
+Check SUB_NAME and SB partner
+EMEA: SB partner required at item level
 Read target item category
-Look up HIGH value in LT_CONFIG using source PSTYV and SUB_NAME.
+Look up HIGH value in LT_CONFIG using source PSTYV
 Update item category
-Set PSTYV to target value. Set UPDKZ = U to persist the change.
-Clear variables and continue
-Clear LV_PLANT, LV_COND, LV_SB, LV_PSTYV. Move to next item.
-End loop — clear config tables
-Clear LT_CONFIG and LR_PLANT after all items processed.
+Set PSTYV to target. Set UPDKZ = U.
+Clear variables and end loop
+Clear all local variables and config tables
 STOP
