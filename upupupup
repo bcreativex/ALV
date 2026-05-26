@@ -1,0 +1,50 @@
+"--------------------------------------------------------------------
+         " SELECT 1 — Customer + Sales data (KNA1 + KNVV)
+         "--------------------------------------------------------------------
+         SELECT DISTINCT a~kunnr,   " Customer number
+                         a~name1,   " Customer name
+                         b~vkorg    " Sales org from sales data
+           INTO CORRESPONDING FIELDS OF TABLE @lt_raw
+           FROM kna1 AS a
+           INNER JOIN knvv AS b ON b~kunnr = a~kunnr
+           WHERE a~kunnr IN @s_kunnr    " Customer number
+             AND a~ktokd IN @lr_ktokd   " account group
+             AND a~kukla IN @lr_kukla   " customer class
+             AND a~sortl IN @lr_sortl   " search term
+             AND a~brsch IN @lr_brsch   " industry
+             AND b~vkorg IN @s_vkorg.   " sales org
+
+         IF sy-subrc = 0 AND lt_raw IS NOT INITIAL.
+
+           "--------------------------------------------------------------------
+           " SELECT 2 — Text data (STXH + TTXIT) via FOR ALL ENTRIES
+           "--------------------------------------------------------------------
+           DATA lt_text TYPE STANDARD TABLE OF ty_raw.
+
+           SELECT c~tdid,
+                  c~tdspras,
+                  c~tdname,
+                  d~tdtext
+             INTO CORRESPONDING FIELDS OF TABLE @lt_text
+             FROM stxh AS c
+             INNER JOIN ttxit AS d ON d~tdobject = @c_tdobject
+                                  AND d~tdid     = c~tdid
+             FOR ALL ENTRIES IN @lt_raw
+             WHERE c~tdobject = @c_tdobject
+               AND c~tdname   = @lt_raw-kunnr
+               AND ( c~tdid IN @s_tdid
+               AND   c~tdid LIKE @c_tdid_z ).
+
+           "--------------------------------------------------------------------
+           " Merge text results into lt_raw
+           "--------------------------------------------------------------------
+           LOOP AT lt_raw ASSIGNING FIELD-SYMBOL(<lfs_merge>).
+             READ TABLE lt_text INTO DATA(ls_text)
+               WITH KEY tdname = <lfs_merge>-kunnr.
+             IF sy-subrc = 0.
+               <lfs_merge>-tdid    = ls_text-tdid.
+               <lfs_merge>-tdspras = ls_text-tdspras.
+               <lfs_merge>-tdname  = ls_text-tdname.
+               <lfs_merge>-tdtext  = ls_text-tdtext.
+             ENDIF.
+           ENDLOOP.
