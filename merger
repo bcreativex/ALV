@@ -1,0 +1,19 @@
+DATA lt_final TYPE STANDARD TABLE OF ty_raw.
+
+           LOOP AT lt_text ASSIGNING FIELD-SYMBOL(<lfs_text>).
+             READ TABLE lt_raw ASSIGNING FIELD-SYMBOL(<lfs_merge>)
+               WITH KEY kunnr = <lfs_text>-tdname
+               BINARY SEARCH.
+             IF sy-subrc = 0.
+               APPEND VALUE #(
+                 kunnr   = <lfs_merge>-kunnr
+                 name1   = <lfs_merge>-name1
+                 vkorg   = <lfs_merge>-vkorg
+                 tdid    = <lfs_text>-tdid
+                 tdspras = <lfs_text>-tdspras
+                 tdname  = <lfs_text>-tdname
+                 tdtext  = <lfs_text>-tdtext ) TO lt_final.
+             ENDIF.
+           ENDLOOP.
+
+           lt_raw = lt_final.
